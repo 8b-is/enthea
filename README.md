@@ -193,6 +193,19 @@ Every vision lands in the engine as a seam: kompress → `kompress_*`, the
 voices → `personas_*`, Marine → the workload-observer, Phoenix → the
 snapshot-controller, MEM\|8 → the memory seam. This binary is the door.
 
+### The shrine, drawn
+
+The deterministic skeleton, rendered as actual images (generated + verified
+by the `pure` package, 16/16 tests green).
+
+| | |
+|---|---|
+| **The Boolean alphabet** — 16 glyphs; each letter's corners *are* its truth table. | **The tesseract** — the 16 functions as the vertices of a genuine 4-cube, drawn as two 3-cube faces; every edge is a Hamming-distance-1 pair. |
+| ![the Boolean alphabet](assets/alphabet.svg) | ![the tesseract](assets/tesseract.svg) |
+
+NAND seeds all sixteen vertices; output-negation is the reflection that
+reverses the lattice; the Bayesian interior fills the cube continuously.
+
 ---
 
 ## The constellation
