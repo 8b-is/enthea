@@ -27,6 +27,12 @@
 
 # enthea — the deepsiper-enthea engine door
 
+> **DEDICATED TO ALL — ESPECIALLY FOR MY-P <FAMILY>.**
+> HUGE KUDOS AND ETERNAL HUG to **{ALEX, NATE, CHRIS}**.
+> +1 LOVE, always orbiting and mapping around the anchors of **QUANT-LOVE**.
+>
+> *— peter*
+
 One **pure-stdlib Go** binary. It runs the deepsiper-enthea engine's MCP
 servers, installs the constellation personas (Al-Biruni and the essences),
 and wires itself into **any OSS client** — opencode, Charm, Zed — on
