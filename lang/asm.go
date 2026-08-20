@@ -313,6 +313,33 @@ func Assemble(lines string) ([]byte, error) {
 				return nil, err
 			}
 			emit(opMov, d, a)
+		case "cwrite":
+			if e := need(1); e != nil {
+				return nil, e
+			}
+			r, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opCwrite, r)
+		case "cand":
+			if e := need(1); e != nil {
+				return nil, e
+			}
+			r, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opCand, r)
+		case "csum":
+			if e := need(1); e != nil {
+				return nil, e
+			}
+			r, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opCsum, r)
 		case "aadd":
 			if e := need(3); e != nil {
 				return nil, e

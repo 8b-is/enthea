@@ -181,3 +181,22 @@ func TestEvaluatorRunsTheClassifier(t *testing.T) {
 	}
 	t.Log("the evaluator runs the ultra classifier — the seed evaluates its own fruit")
 }
+
+// TestQuantCtxFn — the living context in the pure language: fill the
+// sliding window with +1 tokens by tail recursion, then read the Context
+// AND and the Context sum (kompress-ultra's Composer + Circulator + gate).
+func TestQuantCtxFn(t *testing.T) {
+	src := `
+fn fill(n) = if(iszero(n), 0, let _ = ctxwrite(1) in fill(sub(n, 1)))
+let _ = fill(8) in add(ctxsum(), ctxand())
+`
+	got, vm := compileRun(t, src)
+	// sum(8 × [1,0,0]) = 8; AND = [1,0,0] = 1; gate + sum = 9
+	if got != 9 {
+		t.Fatalf("ctxsum()+ctxand() = %d, want 9", got)
+	}
+	if vm.CtxLen() != 8 {
+		t.Fatalf("window %d, want 8", vm.CtxLen())
+	}
+	t.Log("the living context, purely expressed: slide, gate, vote — all ternary")
+}

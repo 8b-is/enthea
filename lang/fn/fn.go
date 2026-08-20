@@ -212,6 +212,7 @@ var primNames = map[string]bool{
 	"b": true, "imp": true, "a": true, "bimp": true, "or": true, "one": true,
 	"add": true, "sub": true, "mul": true, "neg": true, "ultra": true,
 	"iszero": true, "load": true, "store": true, "aadd": true,
+	"ctxwrite": true, "ctxand": true, "ctxsum": true,
 }
 
 func isPrim(name string) bool { return primNames[name] }

@@ -165,6 +165,28 @@ The bus is the agent layer: not messages to be parsed, but miniature
 reasoning units to be run. Stage 2's compiler emits them; the MCP server
 routes them.
 
+## quant-ctx: the living context, quantized
+
+kompress-ultra's "4-role living context layer" (Composer · Pruner ·
+Rewriter · Circulator) lands in the machine as a **sliding window of
+ternary tokens** in the arena:
+
+- **Composer** — tokens are written into the window (`cwrite`); they are
+  already quantized to the cell alphabet {-1,0,+1}. The rewrite is inherent:
+  a token is a trit cell or it is not admitted.
+- **Circulator** — the window is a ring: each write slides one token in and
+  evicts the oldest. Context is a living stream, not a fixed block.
+- **Context AND** (`cand`) — the gate over the whole window: tritwise AND of
+  every token. The gate fires only when the entire window agrees; a single
+  0 drops it, and an unknown (-1) propagates instead of being hidden.
+- **Pruner** — the gate's vote (`csum`) is the balanced-ternary sum of the
+  window; a token that flips the vote is inconsistent with the context and
+  the gate closes.
+
+In the pure language the window is just expressions: `ctxwrite`,
+`ctxand`, `ctxsum`. The bus's 1-bit models can each carry one of these
+windows — a channel of minds, each with a living quantized memory.
+
 ## The bootstrap
 
 - **Stage 1 (this directory)** — the VM is Go. The arena is real; the letters

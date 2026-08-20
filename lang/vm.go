@@ -24,28 +24,31 @@ func clamp(v int) Cell {
 
 // opcodes — 0x00..0x0f are the sixteen Boolean letters; 0x10+ the spine.
 const (
-	opZero  = 0x00
-	opOne   = 0x0f
-	opLdi   = 0x10
-	opLd    = 0x11
-	opSt    = 0x12
-	opTadd  = 0x13
-	opTmul  = 0x14
-	opJmp   = 0x15
-	opJz    = 0x16
-	opJnz   = 0x17
-	opCall  = 0x18
-	opRet   = 0x19
-	opPush  = 0x1a
-	opPop   = 0x1b
-	opQdot  = 0x1c // MLX-QUANT seam: ternary-quantized dot product
-	opUltra = 0x1d // the b1.58 hard activation: soft interior → {-1,0,+1}
-	opNop   = 0x1e
-	opHalt  = 0x1f
-	opLix   = 0x20 // indexed load:  d ← arena[a]
-	opSix   = 0x21 // indexed store: arena[a] ← d
-	opMov   = 0x22 // raw byte copy (address domain): d ← s, no clamp
-	opAadd  = 0x23 // raw byte add (address domain): d ← a+b, no clamp
+	opZero   = 0x00
+	opOne    = 0x0f
+	opLdi    = 0x10
+	opLd     = 0x11
+	opSt     = 0x12
+	opTadd   = 0x13
+	opTmul   = 0x14
+	opJmp    = 0x15
+	opJz     = 0x16
+	opJnz    = 0x17
+	opCall   = 0x18
+	opRet    = 0x19
+	opPush   = 0x1a
+	opPop    = 0x1b
+	opQdot   = 0x1c // MLX-QUANT seam: ternary-quantized dot product
+	opUltra  = 0x1d // the b1.58 hard activation: soft interior → {-1,0,+1}
+	opNop    = 0x1e
+	opHalt   = 0x1f
+	opLix    = 0x20 // indexed load:  d ← arena[a]
+	opSix    = 0x21 // indexed store: arena[a] ← d
+	opMov    = 0x22 // raw byte copy (address domain): d ← s, no clamp
+	opAadd   = 0x23 // raw byte add (address domain): d ← a+b, no clamp
+	opCwrite = 0x24 // quant-ctx: slide a token into the context window
+	opCand   = 0x25 // quant-ctx: r = Context AND over the window
+	opCsum   = 0x26 // quant-ctx: r = Context sum (the gate's vote)
 )
 
 // Registers is the register file: 16 trit cells.
@@ -65,6 +68,11 @@ type VM struct {
 	// heapOff is the bump cursor after the program; the heap grows up from it.
 	heapOff int
 	stackLo int // deepest stack pointer reached
+	// quant-ctx: a sliding window of ternary tokens in the arena (kompress-ultra's
+	// Circulator — the living context, quantized to {-1,0,+1}).
+	ctxBase int
+	ctxLen  int
+	ctxPos  int
 }
 
 // NewVM maps a fresh arena, loads `prog` into it, and returns the machine.
@@ -88,7 +96,13 @@ func NewVMAt(prog []byte, arenaSize, progBase int) (*VM, error) {
 		return nil, fmt.Errorf("lang: program %d bytes exceeds arena %d at base %d", len(prog), arenaSize, progBase)
 	}
 	copy(a.data[progBase:], prog)
-	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1}
+	ctxLen := 8
+	ctxBase := progBase + len(prog) + 16
+	if ctxBase+ctxLen >= arenaSize-64 {
+		a.Close()
+		return nil, fmt.Errorf("lang: no room for the context window (program too large)")
+	}
+	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1, ctxBase: ctxBase, ctxLen: ctxLen}
 	return vm, nil
 }
 
@@ -311,7 +325,47 @@ func init() {
 		b := v.fetchByte()
 		v.regs[d%16] = Cell(int8(byte(v.regs[a%16] + v.regs[b%16]))) // raw, no clamp
 	}
+	ops[opCwrite] = func(v *VM) {
+		r := v.fetchByte()
+		v.arena.data[v.ctxBase+v.ctxPos] = byte(v.regs[r%16]) // slide in
+		v.ctxPos = (v.ctxPos + 1) % v.ctxLen                  // evict the oldest
+	}
+	ops[opCand] = func(v *VM) {
+		r := v.fetchByte()
+		acc := Cell(13) // trits [1,1,1]: the identity of tritwise AND
+		for i := 0; i < v.ctxLen; i++ {
+			acc = tritAnd(acc, Cell(int8(v.arena.data[v.ctxBase+i])))
+		}
+		v.regs[r%16] = acc
+	}
+	ops[opCsum] = func(v *VM) {
+		r := v.fetchByte()
+		sum := 0
+		for i := 0; i < v.ctxLen; i++ {
+			sum += int(int8(v.arena.data[v.ctxBase+i]))
+		}
+		v.regs[r%16] = clamp(sum)
+	}
 }
+
+// tritAnd is the tritwise AND of two cells, with the unknown propagating:
+// the Context AND over the window keeps the Bayesian interior honest.
+func tritAnd(a, b Cell) Cell {
+	ta := decodeCell(a)
+	tb := decodeCell(b)
+	var out [3]int8
+	for i := 0; i < 3; i++ {
+		if ta[i] == -1 || tb[i] == -1 {
+			out[i] = -1
+		} else if ta[i] == 1 && tb[i] == 1 {
+			out[i] = 1
+		}
+	}
+	return encodeCell(out)
+}
+
+// CtxLen reports the quant-ctx window size.
+func (v *VM) CtxLen() int { return v.ctxLen }
 
 // execLetter applies one of the sixteen Boolean functions tritwise to two
 // source registers. An unknown (-1) trit in either source propagates.

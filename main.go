@@ -29,7 +29,7 @@ import (
 	"github.com/8b-is/enthea/lang/fn"
 )
 
-const version = "0.1.11"
+const version = "0.1.12"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -46,6 +46,7 @@ var registry = map[string]Command{
 	"lang":     {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
 	"fn":       {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
 	"bus":      {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
+	"quantctx": {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -344,6 +345,55 @@ ultra(add(mul(x0, 1), add(mul(x1, -1), add(mul(x2, 1), mul(x3, 1)))))`
 	fmt.Printf("  result      %d\n", result)
 	fmt.Println()
 	fmt.Println("  expressions over the sixteen letters; registers are the compiler's business.")
+	return nil
+}
+
+// --- quantctx ---
+
+// runQuantCtx demonstrates the living context (kompress-ultra's four roles,
+// quantized to {-1,0,+1}): tokens slide through an 8-cell window, the gate
+// requires the whole window to agree.
+func runQuantCtx(_ context.Context, _ []string) error {
+	const model = `
+main:
+  ldi r0 1
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  cwrite r0
+  csum r1
+  cand r2
+  ldi r0 0
+  cwrite r0
+  csum r3
+  cand r4
+  halt
+`
+	prog, err := lang.Assemble(model)
+	if err != nil {
+		return err
+	}
+	vm, err := lang.NewVM(prog, 4096)
+	if err != nil {
+		return err
+	}
+	defer vm.Arena().Close()
+	if err := vm.Run(1000); err != nil {
+		return err
+	}
+	regs := vm.Regs()
+	fmt.Printf("enthea quantctx — the living context, quantized to {-1,0,+1}\n\n")
+	fmt.Printf("  %-22s %s\n", "role", "state (8-cell window)")
+	fmt.Printf("  %-22s %+d tokens in the arena\n", "Composer", regs[1])
+	fmt.Printf("  %-22s Context AND = %+d — the window agrees\n", "gate", regs[2])
+	fmt.Printf("  %-22s after sliding a 0: vote %+d\n", "Circulator", regs[3])
+	fmt.Printf("  %-22s Context AND = %+d — the gate drops\n", "Pruner", regs[4])
+	fmt.Println()
+	fmt.Println("  the context is a living ring of trits: every token quantized, every slide an eviction.")
 	return nil
 }
 
