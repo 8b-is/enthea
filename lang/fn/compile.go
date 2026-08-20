@@ -200,6 +200,32 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 		fmt.Fprintf(c.out, "lix r%d r%d\n", out, a)
 		c.freeTemps(a)
 		return out
+	case "ctxwrite":
+		a := c.expr(p.Args[0], false, env)
+		fmt.Fprintf(c.out, "cwrite r%d\n", a)
+		c.freeTemps(a)
+		if tail {
+			return 0
+		}
+		out := c.fresh()
+		c.mov(out, zeroReg)
+		return out
+	case "ctxand":
+		out := c.fresh()
+		fmt.Fprintf(c.out, "cand r%d\n", out)
+		if tail {
+			c.mov(0, out)
+			return 0
+		}
+		return out
+	case "ctxsum":
+		out := c.fresh()
+		fmt.Fprintf(c.out, "csum r%d\n", out)
+		if tail {
+			c.mov(0, out)
+			return 0
+		}
+		return out
 	case "aadd":
 		a := c.expr(p.Args[0], false, env)
 		b := c.expr(p.Args[1], false, env)
