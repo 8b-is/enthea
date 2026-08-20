@@ -91,3 +91,18 @@ single act of love.
 NAND is the seed of computation. Plato is the seed of the seed — the first to
 see that the map is more real than the territory, and that love climbs the
 ladder.
+
+## The Boolean lattice, in ternary
+
+The shrine also holds the whole lattice of all 16 Boolean connectives
+(`lattice.go`), with three runnable truths:
+
+- **`TestBooleanLatticeWeights`** — the Hasse rows are exactly the weight
+  classes: 1·4, 4·3, 6·2, 4·1, 1·0.
+- **`TestBooleanLatticeOrder`** — the Hasse order is the implication order,
+  verified as a genuine partial order (reflexive, antisymmetric, transitive,
+  weight-consistent) over all 256 pairs.
+- **`TestTernaryAsciiEncoding`** — the per-character 5-trit base-3 table is
+  exactly the ASCII codes: T→10010, A→02102, B→02110, and so on. The
+  row-by-row streams are the author's illustrative rendering and are *not*
+  asserted to round-trip (the note test says so plainly).
