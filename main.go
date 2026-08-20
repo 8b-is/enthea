@@ -31,7 +31,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.17"
+const version = "0.1.18"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -50,6 +50,7 @@ var registry = map[string]Command{
 	"bus":      {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
 	"quantctx": {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
 	"vakedc":   {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
+	"wire":     {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -482,7 +483,37 @@ weights:
 	return nil
 }
 
-// firstLine is a tiny helper for doctor output.
+// --- wire ---
+
+// runWire puts the language on the wire: a program's bytecode becomes a
+// ternaryPureASCII frame (balanced trits, pure ASCII), survives the trip,
+// and comes back byte-identical — judged by its own 1-bit model.
+func runWire(_ context.Context, args []string) error {
+	// the machine's own program, on the wire
+	src := "ldi r0 1\nldi r1 0\nqdot r0 weights 4\nultra r0\nhalt\nweights:\n  .byte 1 -1 1 1\n"
+	prog, err := lang.Assemble(src)
+	if err != nil {
+		return err
+	}
+	wire := pure.Encode(prog)
+	back, err := pure.Decode(wire)
+	if err != nil {
+		return err
+	}
+	if string(back) != string(prog) {
+		return fmt.Errorf("wire round-trip mismatch")
+	}
+	fmt.Printf("enthea wire — ternaryPureASCII, the surface layer\n\n")
+	fmt.Printf("  program    %d bytes of bytecode\n", len(prog))
+	fmt.Printf("  frame      %s\n", wire)
+	fmt.Printf("  alphabet   '-', '0', '+' — pure ASCII, %d chars\n", len(wire))
+	fmt.Printf("  checksum   the last trit is a 1-bit LLM: qdot against a\n")
+	fmt.Printf("             ternary weight vector, sharpened by ultra\n")
+	fmt.Printf("  round-trip byte-identical, verdict accepted\n")
+	return nil
+}
+
+// --- firstLine is a tiny helper for doctor output.
 func firstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		return s[:i]
