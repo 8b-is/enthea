@@ -27,7 +27,7 @@ import (
 	"github.com/8b-is/enthea/internal/ui"
 )
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
