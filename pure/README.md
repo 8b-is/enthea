@@ -4,12 +4,13 @@ One side-effect-free kernel, written four ways. Out of respect for Turing and
 ALL before and around.
 
 ```
-NAND ──► NOT · AND · OR · XOR      every computable function is NAND
-  │      (Sheffer stroke, 1913)    functional completeness, proven in
-  │      all 16 binary Boolean     TestFunctionalCompleteness (Post, 1921)
-  │      functions are NAND        — every 4-bit truth table, all four rows
-  │      expressions
+NAND ──► NOT · AND · OR · XOR      every Boolean function is a composition
+  │      (Sheffer stroke, 1913)    of NAND — functional completeness,
+  │      all 16 binary Boolean     proven in TestFunctionalCompleteness
+  │      functions are NAND        (Post, 1921), all four rows each
+  │      compositions
   │
+  │   (lineage, not derivation:)
   └──► the ternary quantize        the BitNet b1.58 kernel, proven pure
           scale = max(mean|w|, 1e-7)
           codes = round(clamp(w/scale, -1, 1)) ∈ {−1, 0, +1}
@@ -68,4 +69,4 @@ I/O. `run.c` is the only thing that prints, and it is only built and executed
 by the test. The shipped module stays 100% pure Go; the shrine is build-gated,
 never linked into `enthea`.
 
-*NAND is the seed · the quant is the bloom · a function is a function*
+*NAND is functionally complete · the quant is pure · the relation is lineage, not derivation*
