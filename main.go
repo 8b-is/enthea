@@ -25,9 +25,10 @@ import (
 	"github.com/8b-is/enthea/internal/mcp"
 	"github.com/8b-is/enthea/internal/personas"
 	"github.com/8b-is/enthea/internal/ui"
+	"github.com/8b-is/enthea/lang"
 )
 
-const version = "0.1.7"
+const version = "0.1.8"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -41,6 +42,7 @@ var registry = map[string]Command{
 	"personas": {Help: "list or install the constellation voices", Run: runPersonas},
 	"setup":    {Help: "wire MCP + personas into a client (opencode, charm, …)", Run: runSetup},
 	"doctor":   {Help: "check the engine and constellation surfaces", Run: runDoctor},
+	"lang":     {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -256,6 +258,52 @@ func runDoctor(_ context.Context, _ []string) error {
 
 func runVersion(_ context.Context, _ []string) error {
 	fmt.Println("enthea " + version)
+	return nil
+}
+
+// --- lang ---
+
+// runLang boots the enthea machine: assembles a program whose cells are the
+// sixteen letters, runs it on an arena the machine owns, and reports where
+// every byte went.
+func runLang(_ context.Context, _ []string) error {
+	prog, err := lang.Assemble(`
+main:
+  ldi r0 1
+  ldi r1 0
+  ldi r2 -1
+  ldi r3 1
+  qdot r4 weights 4
+  ultra r4
+  halt
+weights:
+  .byte 1 -1 1 1
+`)
+	if err != nil {
+		return err
+	}
+	vm, err := lang.NewVM(prog, 4096)
+	if err != nil {
+		return err
+	}
+	defer vm.Arena().Close()
+	if err := vm.Run(10000); err != nil {
+		return err
+	}
+	total, used, _ := vm.Arena().Stats()
+	regs := vm.Regs()
+	fmt.Printf("enthea lang — the seed closes\n\n")
+	fmt.Printf("  program     %3d bytes (the sixteen letters, packed at arena 0)\n", len(prog))
+	fmt.Printf("  arena       %5d bytes total, %d used — one region, owned\n", total, used)
+	if vm.Arena().IsMmap() {
+		fmt.Printf("  backing     kernel mmap (stage 3: no libc, no malloc)\n")
+	} else {
+		fmt.Printf("  backing     owned byte slice (fallback)\n")
+	}
+	fmt.Printf("  call stack  peaked at %d byte(s) — the far end of the arena\n", vm.StackPeak())
+	fmt.Printf("  result      ultra(qdot([1,0,-1,1]·[1,-1,1,1])) = %d\n", regs[4])
+	fmt.Println()
+	fmt.Println("  NAND seeded the sixteen; the sixteen are the opcodes; the arena is the world.")
 	return nil
 }
 
