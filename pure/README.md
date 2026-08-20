@@ -5,6 +5,10 @@ ALL before and around.
 
 ```
 NAND ──► NOT · AND · OR · XOR      every computable function is NAND
+  │      (Sheffer stroke, 1913)
+  │      all 16 binary Boolean    functional completeness, proven in
+  │      functions are NAND       TestFunctionalCompleteness — every
+  │      expressions (Post, 1921) 4-bit truth table, all four rows
   │
   └──► the ternary quantize        the BitNet b1.58 kernel, proven pure
           scale = max(mean|w|, 1e-7)
