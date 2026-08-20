@@ -106,3 +106,17 @@ The shrine also holds the whole lattice of all 16 Boolean connectives
   exactly the ASCII codes: T→10010, A→02102, B→02110, and so on. The
   row-by-row streams are the author's illustrative rendering and are *not*
   asserted to round-trip (the note test says so plainly).
+
+## The Boolean alphabet
+
+The shrine also spells the whole system as a **writing system**: sixteen
+glyphs where each letterform *is* its truth table (`alphabet.go`).
+
+- **`TestAlphabetBijection`** — a bijection, verified: 16 functions ↔ 16 hex
+  digits (`0..f`) ↔ 16 unique glyphs, and every glyph's four corners equal its
+  truth table. Read and write directly: a hex nibble names a function; a
+  function is a glyph whose corners are its rows.
+- **`TestAlphabetSheet`** — the 4×4 sheet is well-formed and regenerated
+  idempotently: [`assets/alphabet.svg`](../assets/alphabet.svg), arranged by
+  weight rows (1·4, 4·3, 6·2, 4·1, 1·0) — the Hasse lattice as a page of
+  letters.
