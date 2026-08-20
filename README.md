@@ -185,6 +185,10 @@ The constellation's work, one line each — the fields that feed the engine.
 | **Phoenix Protocol** | [8b.is docs](https://www.8b.is/documentation) | rebirth context on demand — the snapshot-controller |
 | **MEMNET** | [8b-public-documents](https://github.com/8b-is/8b-public-documents) | routing interpretation, not packets |
 | **kompress-ultra** | [kompress-ultra](https://github.com/peterlodri-sec/kompress-ultra) | sovereign compression on a single M1 — 17 tok/s, no cloud |
+| **marqant** | [8b-is/marqant](https://github.com/8b-is/marqant) | quantum-compressed markdown — token sets, copy-paste-safe |
+| **smart-tree** | [8b-is/smart-tree](https://github.com/8b-is/smart-tree) | not just a tree — MEM8 quantum compression, semantic search, partnership memory |
+| **i1-is** | [8b-is/i1-is](https://github.com/8b-is/i1-is) | the detector: ONNX inference, MCP, `.m8` consciousness — with love for Chris |
+| **Celestial** | [8b-is/Celestial](https://github.com/8b-is/Celestial) | the constellation's sky: planets, galaxies, black holes, a solar system |
 | **The dyad** | [dyad-mapping](https://github.com/8b-is/8b-public-documents/tree/main/dyad-mapping) | Peter + Riva: act, breathe, keep the weights warm |
 | **Offline Game School** | [offline-game-school](https://github.com/peterlodri-sec/offline-game-school) | free offline logic lessons — Uganda first |
 | **The docs surface** | [pubdoc.vaked.dev](https://pubdoc-vaked-dev.pages.dev) | 233 documents, searchable, ultra-entheatic |
