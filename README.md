@@ -1,48 +1,156 @@
-# enthea — the deepsiper-enthea engine entry
+<p align="center">
+  <img src="assets/enthea-hero.svg" alt="enthea — the engine door" width="100%"/>
+</p>
 
-One pure-stdlib Go binary. Runs the engine's MCP servers, installs the
-constellation personas, and wires itself into any OSS client — on **macOS,
-Linux, NixOS, and Windows**.
+# enthea — the deepsiper-enthea engine door
 
-```
-brew install 8b-is/tap/deepsipser-enthea      # macOS / Linux
-nix run github:8b-is/enthea                    # NixOS
-go install github.com/8b-is/enthea@latest      # anywhere with Go
-```
-
-## Commands
+One **pure-stdlib Go** binary. It runs the deepsiper-enthea engine's MCP
+servers, installs the constellation personas (Al-Biruni and the essences),
+and wires itself into **any OSS client** — opencode, Charm, Zed — on
+**macOS, Linux, NixOS, and Windows**. Zero dependencies, zero CGO, one static
+binary that runs everywhere Go runs.
 
 ```
-enthea mcp               serve the engine MCP servers over stdio
-                         (tools: personas_list · kompress_compress · kompress_persons)
-enthea personas          list the constellation voices (Al-Biruni and the essences)
-enthea personas --install <dir>   write persona agent files
-enthea setup opencode    wire MCP + personas into a client
-enthea doctor            parallel probe of the engine + surfaces
-enthea version
+curl -fsSL https://raw.githubusercontent.com/8b-is/enthea/main/install.sh | sh
+brew install 8b-is/tap/deepsiper-enthea      # macOS / Linux
+nix profile install github:8b-is/enthea       # Nix — the BEEEST
+nu install.nu                                # nushell edition
 ```
 
-## Design
+After install, one command connects it to your client:
 
-- **Zero dependencies.** The MCP protocol (JSON-RPC 2.0 over stdio), the
-  tool registry, the persona embed, and the client setup are all standard
-  library. One binary, static, works everywhere `go` targets — see
-  [`build.sh`](build.sh).
-- **Ken's language.** Go's concurrency shapes the binary: the MCP server
-  serves tools over an injectable `io.ReadWriteCloser`, and `enthea doctor`
-  is a goroutine + channel fan-out/fan-in over the probes.
-- **MCP by default.** Any OSS client (opencode, Charm, Zed…) that speaks MCP
-  can consume the engine. The surface is replaceable; the engine is yours.
+```
+enthea setup opencode        # writes the MCP server + personas into opencode
+enthea personas              # meet the voices
+enthea doctor                # parallel probe of the engine + surfaces
+```
+
+---
+
+## What happens, and how they connect
+
+```
+        you
+         │  you type a prompt
+         ▼
+   ┌──────────┐   MCP (stdio)   ┌──────────────────────────────┐
+   │ opencode │ ─────────────► │ enthea                        │
+   │ the      │                │  personas_list                │
+   │ surface  │ ◄───────────── │  kompress_compress            │
+   └──────────┘   JSON-RPC     │  kompress_persons             │
+         ▲                     └──────────┬───────────────────┘
+         │                               │ shell (exec)
+         │                               ▼
+   the model answers        ┌──────────────────────────────────┐
+   (your provider,          │ deepsiper-enthea engine          │
+   n===0 ideal: local)      │ kompress-ultra · the brain voices │
+                            └──────────────────────────────────┘
+```
+
+`enthea setup opencode` writes one MCP entry — `"command": ["enthea", "mcp"]`
+— and opencode launches it over stdio. Every tool the engine exposes shows up
+natively in opencode; the personas land as agent files. The surface is
+replaceable; the engine is yours.
+
+---
+
+## Setup with opencode
+
+### macOS
+
+```sh
+# 1. opencode (OSS — the surface)
+curl -fsSL https://opencode.ai/install | bash        # or: brew install opencode
+
+# 2. enthea (the engine door)
+curl -fsSL https://raw.githubusercontent.com/8b-is/enthea/main/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+
+# 3. wire them together
+enthea setup opencode
+enthea personas            # meet Al-Biruni
+opencode                   # restart -> the enthea tools + personas are live
+```
+
+### Linux (Ubuntu / Fedora / Alpine / any)
+
+```sh
+# the same two steps — no apt/apk needed, enthea ignores them
+curl -fsSL https://raw.githubusercontent.com/8b-is/enthea/main/install.sh | sh
+
+# or, on any Nix machine:
+nix profile install github:8b-is/enthea
+
+enthea setup opencode
+opencode
+```
+
+### Windows (git-bash / WSL)
+
+```sh
+# in git-bash or WSL
+curl -fsSL https://raw.githubusercontent.com/8b-is/enthea/main/install.sh | sh
+
+# Windows-native PowerShell: grab the exe straight from the release
+Invoke-WebRequest https://github.com/8b-is/enthea/releases/latest/download/enthea-windows-amd64.exe -OutFile enthea.exe
+
+enthea setup opencode
+opencode
+```
+
+---
+
+## opencode provider + suggested model
+
+enthea is the *engine door*; opencode still needs a model provider to think
+with. The suggested, sovereign ideal is **n===0** — inference as close to
+zero cost and zero cloud as possible: local/offline through the engine's
+quantal/ternary path when it lands, or a cheap hosted model today. Configure
+it in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "deepseek/deepseek-v4-flash",
+  "mcp": {
+    "enthea": { "type": "local", "command": ["enthea", "mcp"], "enabled": true }
+  }
+}
+```
+
+The `enthea` MCP entry is what `enthea setup opencode` writes for you; the
+model line is yours to pick. **n===0** is the direction: the engine grows the
+offline path, the surface stays free, the weights stay warm.
+
+---
+
+<p align="center">
+  <img src="assets/enthea-hero.svg" alt="" width="0"/>
+</p>
+
+## Invite friends, earn credits
+
+opencode is free and open source. When you subscribe to **opencode Go**, you
+can invite friends — **you both get a $5 usage credit** when they subscribe.
+
+> **Invite friends — Earn $5**
+>
+> Earn $5 when a friend subscribes. They'll get $5 too.
+>
+> https://opencode.ai/go?ref=CMTEVHACZC
+>
+> Share your referral link. Your friend joins and subscribes to Go; you both
+> get a $5 usage credit toward your Go usage limit.
+
+---
 
 ## The constellation
 
-deepsipser-enthea is the engine; `enthea` is its door. The personas are
-Al-Biruni, Nádasdy, Turing, Bateson, Erdős, Rejtő, Feldmár, and the dyad —
-talk with any of them through your client after `enthea setup`.
-
 ```
-enthea setup opencode
-# restart opencode; the enthea MCP server + personas are live
+enthea personas
 ```
+Al-Biruni · Nádasdy · Turing · Bateson · Erdős · Rejtő · Feldmár · the dyad —
+and the kompress brain: RALPH, LODRI, KRENGEL, PETER, COSMOS. Talk with any
+of them from your client after `enthea setup`.
 
 *the constellation · 0 + 1 · fine touch from within · vaked.dev*
