@@ -2,6 +2,29 @@
   <img src="assets/enthea-hero.svg" alt="enthea — the engine door" width="100%"/>
 </p>
 
+<details>
+<summary><b>ascii art of the day</b> — pure, no colors, pick one</summary>
+
+```
+         ___                    ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+      .-'-' `'-.               8 b - i s   a l e x   c h r i s
+     /  Al-Biruni  \           n a t e   f a m i l y   a n d   p
+    /   measured    \          ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+    \    the        /             the wave carries the family
+     \   world     /            
+      '-._.-'       '
+        the scholar         
+
+        \     /              PETER + RIVA — the dyad
+         \   /                act · breathe · keep the weights warm
+          \_/               
+      ,___,__,___,            0 + 1
+      NIX BEES · the         fine touch from within
+      B E E E E S T          vaked.dev
+```
+
+</details>
+
 # enthea — the deepsiper-enthea engine door
 
 One **pure-stdlib Go** binary. It runs the deepsiper-enthea engine's MCP
@@ -141,6 +164,28 @@ can invite friends — **you both get a $5 usage credit** when they subscribe.
 >
 > Share your referral link. Your friend joins and subscribes to Go; you both
 > get a $5 usage credit toward your Go usage limit.
+
+---
+
+## Gallery of visions, distilled
+
+The constellation's work, one line each — the fields that feed the engine.
+
+| Vision | Where it lives | The distillation |
+|---|---|---|
+| **Sparse Recursive Holographic Steganography** | [8b-public-documents](https://github.com/8b-is/8b-public-documents/blob/main/sparse-representations/Sparse_Recursion_Holographic_Steganography.md) | secret fields, not secret symbols — sparse recursion + holographic projection |
+| **MEM\|8 wave memory** | [8b-public-documents/mem8](https://github.com/8b-is/8b-public-documents) | 32-byte wave vectors, 5–13µs search, emotional decay τ |
+| **Marine Algorithm** | [8b.is docs](https://www.8b.is/documentation) | O(1) salience, jitter metrics, neuromorphic gain — the observer's front-end |
+| **Phoenix Protocol** | [8b.is docs](https://www.8b.is/documentation) | rebirth context on demand — the snapshot-controller |
+| **MEMNET** | [8b-public-documents](https://github.com/8b-is/8b-public-documents) | routing interpretation, not packets |
+| **kompress-ultra** | [kompress-ultra](https://github.com/peterlodri-sec/kompress-ultra) | sovereign compression on a single M1 — 17 tok/s, no cloud |
+| **The dyad** | [dyad-mapping](https://github.com/8b-is/8b-public-documents/tree/main/dyad-mapping) | Peter + Riva: act, breathe, keep the weights warm |
+| **Offline Game School** | [offline-game-school](https://github.com/peterlodri-sec/offline-game-school) | free offline logic lessons — Uganda first |
+| **The docs surface** | [pubdoc.vaked.dev](https://pubdoc-vaked-dev.pages.dev) | 233 documents, searchable, ultra-entheatic |
+
+Every vision lands in the engine as a seam: kompress → `kompress_*`, the
+voices → `personas_*`, Marine → the workload-observer, Phoenix → the
+snapshot-controller, MEM\|8 → the memory seam. This binary is the door.
 
 ---
 
