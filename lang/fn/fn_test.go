@@ -77,3 +77,107 @@ count(13)`
 	}
 	t.Log("13 tail-recursive iterations on a constant stack — pure TCO")
 }
+
+// evalSrc is the metacircular evaluator: a small interpreter for the enthea
+// expression language, written IN the enthea language itself. It reads a
+// tagged AST from the arena: tag 0 = literal (value next), 1 = add, 2 = mul,
+// 3 = sub, 8 = and, 9 = ultra. Equality is `iszero(sub(a,b))`, inlined.
+const evalSrc = `
+fn eval(e) =
+  let t = load(e) in
+  if(iszero(t),
+    load(aadd(e, 1)),
+    if(iszero(sub(t, 1)),
+      add(eval(load(aadd(e, 1))), eval(load(aadd(e, 2)))),
+      if(iszero(sub(t, 2)),
+        mul(eval(load(aadd(e, 1))), eval(load(aadd(e, 2)))),
+        if(iszero(sub(t, 3)),
+          sub(eval(load(aadd(e, 1))), eval(load(aadd(e, 2)))),
+          if(iszero(sub(t, 8)),
+            and(eval(load(aadd(e, 1))), eval(load(aadd(e, 2)))),
+            if(iszero(sub(t, 9)),
+              ultra(eval(load(aadd(e, 1)))),
+              load(aadd(e, 1))
+            )
+          )
+        )
+      )
+    )
+  )
+eval(0)
+`
+
+// runEval compiles the evaluator, injects an AST at arena base 0, and runs.
+// The program rides high in the arena (base 128), the data rides low.
+func runEval(t *testing.T, ast map[int]int8) lang.Cell {
+	t.Helper()
+	fns, main, err := Parse(evalSrc)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	prog, err := Compile(fns, main)
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if len(prog) > 1024 {
+		t.Fatalf("evaluator program %d bytes overflows the data region (1024)", len(prog))
+	}
+	vm, err := lang.NewVMAt(prog, 4096, 1024)
+	if err != nil {
+		t.Fatalf("newvm: %v", err)
+	}
+	t.Cleanup(func() { vm.Arena().Close() })
+	for addr, b := range ast {
+		vm.Arena().View()[addr] = byte(b)
+	}
+	if err := vm.Run(100000); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	return vm.Regs()[0]
+}
+
+// TestMetacircularEval — the enthea language evaluates add(mul(3,2), 4) = 10,
+// using an evaluator written in the language itself.
+func TestMetacircularEval(t *testing.T) {
+	ast := map[int]int8{
+		0: 1, 1: 10, 2: 20, // add(mul, lit4)
+		10: 2, 11: 30, 12: 32, // mul(lit3, lit2)
+		20: 0, 21: 4, // lit 4
+		30: 0, 31: 3, // lit 3
+		32: 0, 33: 2, // lit 2
+	}
+	got := runEval(t, ast)
+	if got != 10 {
+		t.Fatalf("eval(add(mul(3,2),4)) = %d, want 10", got)
+	}
+	t.Log("the language runs itself: a metacircular evaluator in the arena")
+}
+
+// TestEvaluatorRunsTheClassifier — the same evaluator runs the ultra
+// classifier: ultra(dot([1,0,-1,1], [1,0,-1,1])) with inputs [1,0,-1,1] =
+// ultra(1·1 + 0·0 + (-1)·(-1) + 1·1) = ultra(3) = 1, as data in the arena.
+func TestEvaluatorRunsTheClassifier(t *testing.T) {
+	ast := map[int]int8{
+		0: 9, 1: 10, // ultra(node10)
+		10: 1, 11: 30, 12: 80, // add(mul11, node80)
+		30: 2, 31: 100, 32: 102, // mul(lit1, lit1)  = 1
+		40: 2, 41: 104, 42: 106, // mul(lit0, lit-1) = 0
+		50: 2, 51: 108, 52: 110, // mul(lit-1, lit1) = -1
+		60: 2, 61: 112, 62: 114, // mul(lit1, lit1)  = 1
+		70: 1, 71: 40, 72: 50, // add(0, -1) = -1
+		80: 1, 81: 70, 82: 60, // add(-1, 1) = 0
+		100: 0, 101: 1, // 1
+		102: 0, 103: 1, // 1
+		104: 0, 105: 0, // 0
+		106: 0, 107: -1, // -1
+		108: 0, 109: -1, // -1
+		110: 0, 111: 1, // 1
+		112: 0, 113: 1, // 1
+		114: 0, 115: 1, // 1
+	}
+	got := runEval(t, ast)
+	if got != 1 {
+		t.Fatalf("eval(ultra-classifier) = %d, want 1", got)
+	}
+	t.Log("the evaluator runs the ultra classifier — the seed evaluates its own fruit")
+}

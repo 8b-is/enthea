@@ -28,11 +28,11 @@ func Assemble(lines string) ([]byte, error) {
 		}
 	}
 	emit := func(b ...byte) { prog = append(prog, b...) }
-	// emitAddr emits opcode + a fixup'd address byte.
+	// emitAddr emits opcode + a fixup'd 16-bit little-endian address.
 	emitAddr := func(op byte, label string) {
 		emit(op)
 		fixups = append(fixups, fixup{at: len(prog), addr: label})
-		emit(0)
+		emit(0, 0)
 	}
 	// flushCall resolves a held tail-call decision before the next line.
 	flushCall := func(tail bool) {
@@ -165,7 +165,7 @@ func Assemble(lines string) ([]byte, error) {
 			if _, err = addr(); err != nil {
 				return nil, err
 			}
-			emit(0)
+			emit(0, 0)
 		case "st":
 			if e := need(2); e != nil {
 				return nil, e
@@ -174,7 +174,7 @@ func Assemble(lines string) ([]byte, error) {
 			if _, err = addr(); err != nil {
 				return nil, err
 			}
-			emit(0) // the addr slot, filled by the fixup
+			emit(0, 0) // the addr slots, filled by the fixup
 			r, err = reg()
 			if err != nil {
 				return nil, err
@@ -222,7 +222,7 @@ func Assemble(lines string) ([]byte, error) {
 			if _, err = addr(); err != nil {
 				return nil, err
 			}
-			emit(0)
+			emit(0, 0)
 		case "jz", "jnz":
 			if e := need(2); e != nil {
 				return nil, e
@@ -239,7 +239,7 @@ func Assemble(lines string) ([]byte, error) {
 			if _, err = addr(); err != nil {
 				return nil, err
 			}
-			emit(0)
+			emit(0, 0)
 		case "call":
 			if e := need(1); e != nil {
 				return nil, e
@@ -264,7 +264,7 @@ func Assemble(lines string) ([]byte, error) {
 			}
 			emit(opQdot, d)
 			fixups = append(fixups, fixup{at: len(prog), addr: w})
-			emit(0, byte(nv))
+			emit(0, 0, byte(nv))
 		case "ultra":
 			if e := need(1); e != nil {
 				return nil, e
@@ -274,6 +274,62 @@ func Assemble(lines string) ([]byte, error) {
 				return nil, err
 			}
 			emit(opUltra, r)
+		case "lix":
+			if e := need(2); e != nil {
+				return nil, e
+			}
+			d, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			a, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opLix, d, a)
+		case "six":
+			if e := need(2); e != nil {
+				return nil, e
+			}
+			a, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			d, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opSix, a, d)
+		case "mov":
+			if e := need(2); e != nil {
+				return nil, e
+			}
+			d, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			a, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opMov, d, a)
+		case "aadd":
+			if e := need(3); e != nil {
+				return nil, e
+			}
+			d, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			a, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			b, err = reg()
+			if err != nil {
+				return nil, err
+			}
+			emit(opAadd, d, a, b)
 		case "push":
 			if e := need(1); e != nil {
 				return nil, e
@@ -304,8 +360,8 @@ func Assemble(lines string) ([]byte, error) {
 	if pendingCall != "" {
 		flushCall(false) // a trailing call is never a tail call
 	}
-	if len(prog) > 255 {
-		return nil, fmt.Errorf("lang: program %d bytes exceeds the 256-byte stage-1 arena address space", len(prog))
+	if len(prog) > 65535 {
+		return nil, fmt.Errorf("lang: program %d bytes exceeds the 64KiB arena address space", len(prog))
 	}
 	for _, f := range fixups {
 		target, ok := labels[f.addr]
@@ -313,6 +369,7 @@ func Assemble(lines string) ([]byte, error) {
 			return nil, fmt.Errorf("lang: undefined label %q", f.addr)
 		}
 		prog[f.at] = byte(target)
+		prog[f.at+1] = byte(target >> 8)
 	}
 	return prog, nil
 }

@@ -42,6 +42,10 @@ const (
 	opUltra = 0x1d // the b1.58 hard activation: soft interior → {-1,0,+1}
 	opNop   = 0x1e
 	opHalt  = 0x1f
+	opLix   = 0x20 // indexed load:  d ← arena[a]
+	opSix   = 0x21 // indexed store: arena[a] ← d
+	opMov   = 0x22 // raw byte copy (address domain): d ← s, no clamp
+	opAadd  = 0x23 // raw byte add (address domain): d ← a+b, no clamp
 )
 
 // Registers is the register file: 16 trit cells.
@@ -65,16 +69,26 @@ type VM struct {
 
 // NewVM maps a fresh arena, loads `prog` into it, and returns the machine.
 func NewVM(prog []byte, arenaSize int) (*VM, error) {
+	return NewVMAt(prog, arenaSize, 0)
+}
+
+// NewVMAt is NewVM with the program placed at an arena base. Data may then
+// live below the program (low addresses 0..base-1); the program rides high.
+func NewVMAt(prog []byte, arenaSize, progBase int) (*VM, error) {
 	a, err := NewArena(arenaSize)
 	if err != nil {
 		return nil, err
 	}
-	if len(prog) > arenaSize {
+	if progBase < 0 || progBase >= arenaSize {
 		a.Close()
-		return nil, fmt.Errorf("lang: program %d bytes exceeds arena %d", len(prog), arenaSize)
+		return nil, fmt.Errorf("lang: program base %d out of arena %d", progBase, arenaSize)
 	}
-	copy(a.data, prog)
-	vm := &VM{arena: a, prog: a.data[:len(prog)], heapOff: len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1}
+	if len(prog) > arenaSize-progBase {
+		a.Close()
+		return nil, fmt.Errorf("lang: program %d bytes exceeds arena %d at base %d", len(prog), arenaSize, progBase)
+	}
+	copy(a.data[progBase:], prog)
+	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1}
 	return vm, nil
 }
 
@@ -127,6 +141,13 @@ func (v *VM) fetchByte() byte {
 	return b
 }
 
+// fetchAddr reads a 16-bit little-endian address (the widened ISA).
+func (v *VM) fetchAddr() int {
+	lo := v.fetchByte()
+	hi := v.fetchByte()
+	return int(lo) | int(hi)<<8
+}
+
 func init() {
 	// the sixteen letters, each its own table slot
 	for f := 0; f < 16; f++ {
@@ -140,7 +161,7 @@ func init() {
 	}
 	ops[opLd] = func(v *VM) {
 		r := v.fetchByte()
-		addr := int(v.fetchByte())
+		addr := v.fetchAddr()
 		if addr < 0 || addr >= len(v.arena.data) {
 			v.err = fmt.Errorf("lang: load from %d outside arena", addr)
 			return
@@ -148,7 +169,7 @@ func init() {
 		v.regs[r%16] = Cell(int8(v.arena.data[addr]))
 	}
 	ops[opSt] = func(v *VM) {
-		addr := int(v.fetchByte())
+		addr := v.fetchAddr()
 		r := v.fetchByte()
 		if addr < 0 || addr >= len(v.arena.data) {
 			v.err = fmt.Errorf("lang: store to %d outside arena", addr)
@@ -164,41 +185,43 @@ func init() {
 		d, a, b := v.fetchByte(), v.fetchByte(), v.fetchByte()
 		v.regs[d%16] = clamp(int(v.regs[a%16]) * int(v.regs[b%16]))
 	}
-	ops[opJmp] = func(v *VM) { v.ip = int(v.fetchByte()) }
+	ops[opJmp] = func(v *VM) { v.ip = v.fetchAddr() }
 	ops[opJz] = func(v *VM) {
 		r := v.fetchByte()
-		addr := int(v.fetchByte())
+		addr := v.fetchAddr()
 		if v.regs[r%16] == 0 {
 			v.ip = addr
 		}
 	}
 	ops[opJnz] = func(v *VM) {
 		r := v.fetchByte()
-		addr := int(v.fetchByte())
+		addr := v.fetchAddr()
 		if v.regs[r%16] != 0 {
 			v.ip = addr
 		}
 	}
 	ops[opCall] = func(v *VM) {
-		addr := int(v.fetchByte())
-		if v.sp <= v.heapOff {
-			v.err = fmt.Errorf("lang: call stack overflow at %d", v.ip-1)
+		addr := v.fetchAddr()
+		if v.sp-1 <= v.heapOff {
+			v.err = fmt.Errorf("lang: call stack overflow at %d", v.ip-2)
 			return
 		}
+		// return address: 16-bit, pushed as lo then hi
 		v.arena.data[v.sp] = byte(v.ip)
-		v.sp--
+		v.arena.data[v.sp-1] = byte(v.ip >> 8)
+		v.sp -= 2
 		if v.sp < v.stackLo {
 			v.stackLo = v.sp
 		}
 		v.ip = addr
 	}
 	ops[opRet] = func(v *VM) {
-		if v.sp >= len(v.arena.data)-1 {
+		if v.sp+2 > len(v.arena.data)-1 {
 			v.err = fmt.Errorf("lang: return from empty stack")
 			return
 		}
-		v.sp++
-		v.ip = int(v.arena.data[v.sp])
+		v.sp += 2
+		v.ip = int(v.arena.data[v.sp]) | int(v.arena.data[v.sp-1])<<8
 	}
 	ops[opPush] = func(v *VM) {
 		r := v.fetchByte()
@@ -225,7 +248,7 @@ func init() {
 		// MLX-QUANT seam: a ternary-quantized dot product. Inputs are the
 		// first n registers; the n weights {-1,0,+1} live in the arena at w.
 		d := v.fetchByte()
-		w := int(v.fetchByte())
+		w := v.fetchAddr()
 		n := int(v.fetchByte())
 		if n < 1 || n > 16 {
 			v.err = fmt.Errorf("lang: qdot count %d out of 1..16", n)
@@ -259,6 +282,35 @@ func init() {
 	}
 	ops[opNop] = func(v *VM) {}
 	ops[opHalt] = func(v *VM) { v.halt = true }
+	ops[opLix] = func(v *VM) {
+		d := v.fetchByte()
+		a := v.fetchByte()
+		if int(v.regs[a%16]) < 0 || int(v.regs[a%16]) >= len(v.arena.data) {
+			v.err = fmt.Errorf("lang: indexed load from %d outside arena", v.regs[a%16])
+			return
+		}
+		v.regs[d%16] = Cell(int8(v.arena.data[v.regs[a%16]]))
+	}
+	ops[opSix] = func(v *VM) {
+		a := v.fetchByte()
+		d := v.fetchByte()
+		if int(v.regs[a%16]) < 0 || int(v.regs[a%16]) >= len(v.arena.data) {
+			v.err = fmt.Errorf("lang: indexed store to %d outside arena", v.regs[a%16])
+			return
+		}
+		v.arena.data[v.regs[a%16]] = byte(v.regs[d%16])
+	}
+	ops[opMov] = func(v *VM) {
+		d := v.fetchByte()
+		s := v.fetchByte()
+		v.regs[d%16] = v.regs[s%16] // raw, no clamp: addresses are bytes
+	}
+	ops[opAadd] = func(v *VM) {
+		d := v.fetchByte()
+		a := v.fetchByte()
+		b := v.fetchByte()
+		v.regs[d%16] = Cell(int8(byte(v.regs[a%16] + v.regs[b%16]))) // raw, no clamp
+	}
 }
 
 // execLetter applies one of the sixteen Boolean functions tritwise to two
