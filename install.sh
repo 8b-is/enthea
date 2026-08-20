@@ -27,7 +27,7 @@ banner() {
     done
     printf '\n'; frame=$((frame + 1)); sleep 0.04
   done
-  printf '%s\n' "0 + 1   fine touch from within   vaked.dev"
+  printf '%s\n' "   vaked.dev"
 }
 banner
 
