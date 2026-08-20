@@ -68,8 +68,8 @@ func TestKernelsMatchProve(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bad scale %q: %v", f[5], err)
 		}
-		if codes != wantCodes || math.Abs(scale-wantScale) > 1e-12 {
-			t.Errorf("%s kernel mismatch: got codes %v scale %.17g; want %v %.17g (scale within 1e-12)",
+		if codes != wantCodes || !withinUlps(scale, wantScale, 8) {
+			t.Errorf("%s kernel mismatch: got codes %v scale %.17g; want %v %.17g (scale within 8 ulp)",
 				f[0], codes, scale, wantCodes, wantScale)
 		}
 	}
@@ -168,6 +168,13 @@ func TestFunctionalCompleteness(t *testing.T) {
 		built++
 	}
 	t.Logf("all %d binary Boolean functions expressible from NAND alone — the seed is complete", built)
+}
+
+// withinUlps reports whether a and b differ by at most n ulps around a.
+func withinUlps(a, b float64, n uint64) bool {
+	d := math.Abs(a - b)
+	step := math.Abs(math.Nextafter(a, 0) - a) // one ulp at a
+	return d <= step*float64(n)
 }
 
 // ExampleTernary4 documents the worked example in runnable form.
