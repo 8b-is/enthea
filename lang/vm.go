@@ -85,7 +85,7 @@ func NewVM(prog []byte, arenaSize int) (*VM, error) {
 func NewVMAt(prog []byte, arenaSize, progBase int) (*VM, error) {
 	a, err := NewArena(arenaSize)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("lang: NewVMAt: %w", err)
 	}
 	if progBase < 0 || progBase >= arenaSize {
 		a.Close()

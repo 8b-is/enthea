@@ -28,7 +28,7 @@ func (PersonasTool) InputSchema() map[string]any {
 func (PersonasTool) Run(_ context.Context, _ map[string]any) (any, error) {
 	ps, err := personas.List()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list personas: %w", err)
 	}
 	out := make([]map[string]string, 0, len(ps))
 	for _, p := range ps {
@@ -84,7 +84,7 @@ func (t *KompressTool) Run(_ context.Context, args map[string]any) (any, error) 
 	}
 	out, err := t.sh.Run("kompress", "compress", text)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("kompress compress: %w", err)
 	}
 	ratio := 0
 	if m := ratioRe.FindStringSubmatch(out); len(m) == 2 {
@@ -120,7 +120,7 @@ func (t *PersonsTool) InputSchema() map[string]any {
 func (t *PersonsTool) Run(_ context.Context, _ map[string]any) (any, error) {
 	out, err := t.sh.Run("kompress", "persons")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("kompress persons: %w", err)
 	}
 	var persons []map[string]string
 	for _, line := range strings.Split(out, "\n") {

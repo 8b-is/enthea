@@ -74,7 +74,7 @@ func Install(dir string) ([]string, error) {
 	}
 	ps, err := List()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list personas: %w", err)
 	}
 	var written []string
 	for _, p := range ps {

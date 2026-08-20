@@ -29,7 +29,7 @@ import (
 	"github.com/8b-is/enthea/lang/fn"
 )
 
-const version = "0.1.12"
+const version = "0.1.13"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
