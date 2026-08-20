@@ -11,7 +11,18 @@ import (
 // One instruction per line: `mnemonic [operand …]`. Registers are `r0`..`r15`,
 // immediates are balanced-ternary cells (-13..+13), addresses are labels or
 // decimal bytes. Lines ending in `:` declare a label. `;` starts a comment.
+//
+// Errors are accumulated, not threaded: the fallible helpers record into
+// `parseErr` and short-circuit to zero-values, so the instruction loop never
+// carries an error value — it surfaces exactly once, at the end.
 func Assemble(lines string) ([]byte, error) {
+	var parseErr error
+	fail := func(err error) {
+		if parseErr == nil {
+			parseErr = err
+		}
+	}
+
 	labels := map[string]int{}
 	var prog []byte
 	type fixup struct {
@@ -48,6 +59,9 @@ func Assemble(lines string) ([]byte, error) {
 	}
 
 	for _, raw := range strings.Split(lines, "\n") {
+		if parseErr != nil {
+			break // fail fast: nothing further is parsed
+		}
 		line := strings.TrimSpace(raw)
 		if i := strings.IndexByte(line, ';'); i >= 0 {
 			line = strings.TrimSpace(line[:i])
@@ -66,7 +80,8 @@ func Assemble(lines string) ([]byte, error) {
 			for _, w := range fields[1:] {
 				n, err := strconv.Atoi(w)
 				if err != nil || n < -128 || n > 127 {
-					return nil, fmt.Errorf("lang: .byte %q not in -128..127", w)
+					fail(fmt.Errorf("lang: .byte %q not in -128..127", w))
+					break
 				}
 				emit(byte(int8(n)))
 			}
@@ -82,308 +97,169 @@ func Assemble(lines string) ([]byte, error) {
 		}
 		flushCall(false)
 		args := fields[1:]
-		need := func(n int) error {
-			if len(args) != n {
-				return fmt.Errorf("lang: %s wants %d operands, got %d", m, n, len(args))
+
+		// the fallible helpers: they record the first error and then no-op.
+		need := func(n int) {
+			if parseErr == nil && len(args) != n {
+				fail(fmt.Errorf("lang: %s wants %d operands, got %d", m, n, len(args)))
 			}
-			return nil
 		}
-		reg := func() (byte, error) {
+		reg := func() byte {
+			if parseErr != nil || len(args) == 0 {
+				return 0
+			}
 			s := args[0]
 			args = args[1:]
 			if !strings.HasPrefix(s, "r") {
-				return 0, fmt.Errorf("lang: %s: %q is not a register", m, s)
+				fail(fmt.Errorf("lang: %s: %q is not a register", m, s))
+				return 0
 			}
 			n, err := strconv.Atoi(strings.TrimPrefix(s, "r"))
 			if err != nil || n < 0 || n > 15 {
-				return 0, fmt.Errorf("lang: %s: %q is not r0..r15", m, s)
+				fail(fmt.Errorf("lang: %s: %q is not r0..r15", m, s))
+				return 0
 			}
-			return byte(n), nil
+			return byte(n)
 		}
-		imm := func() (byte, error) {
+		imm := func() byte {
+			if parseErr != nil || len(args) == 0 {
+				return 0
+			}
 			s := args[0]
 			args = args[1:]
 			n, err := strconv.Atoi(s)
 			if err != nil || n < -13 || n > 13 {
-				return 0, fmt.Errorf("lang: %s: %q is not a cell in -13..13", m, s)
+				fail(fmt.Errorf("lang: %s: %q is not a cell in -13..13", m, s))
+				return 0
 			}
-			return byte(int8(n)), nil
+			return byte(int8(n))
 		}
-		addr := func() (byte, error) {
+		addr := func() {
+			if parseErr != nil || len(args) == 0 {
+				return
+			}
 			s := args[0]
 			args = args[1:]
 			if _, err := strconv.Atoi(s); err == nil {
-				return 0, fmt.Errorf("lang: %s: use labels, not raw addresses", m)
+				fail(fmt.Errorf("lang: %s: use labels, not raw addresses", m))
+				return
 			}
-			fixups = append(fixups, fixup{at: len(prog), addr: s})
-			return 0, nil // placeholder filled in resolve
+			fixups = append(fixups, fixup{at: len(prog), addr: s}) // resolved later
 		}
 
-		var err error
-		var d, a, b, r byte
 		switch m {
 		case "zero", "nor", "anb", "nota", "nab", "notb", "xor", "nand",
 			"and", "xnor", "b", "imp", "a", "bimp", "or", "one":
-			if e := need(3); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			b, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(3)
+			d, a, b := reg(), reg(), reg()
 			emit(letterOpcode(m), d, a, b)
 		case "ldi":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			var v byte
-			if v, err = imm(); err != nil {
-				return nil, err
-			}
+			need(2)
+			r, v := reg(), imm()
 			emit(opLdi, r, v)
 		case "ld":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(2)
+			r := reg()
 			emit(opLd, r)
-			if _, err = addr(); err != nil {
-				return nil, err
-			}
+			addr()
 			emit(0, 0)
 		case "st":
-			if e := need(2); e != nil {
-				return nil, e
-			}
+			need(2)
 			emit(opSt)
-			if _, err = addr(); err != nil {
-				return nil, err
-			}
+			addr()
 			emit(0, 0) // the addr slots, filled by the fixup
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(r)
+			emit(reg())
 		case "tadd":
-			if e := need(3); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			b, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(3)
+			d, a, b := reg(), reg(), reg()
 			emit(opTadd, d, a, b)
 		case "tmul":
-			if e := need(3); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			b, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(3)
+			d, a, b := reg(), reg(), reg()
 			emit(opTmul, d, a, b)
 		case "jmp":
-			if e := need(1); e != nil {
-				return nil, e
-			}
+			need(1)
 			emit(opJmp)
-			if _, err = addr(); err != nil {
-				return nil, err
-			}
+			addr()
 			emit(0, 0)
 		case "jz", "jnz":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(2)
+			r := reg()
 			if m == "jz" {
 				emit(opJz, r)
 			} else {
 				emit(opJnz, r)
 			}
-			if _, err = addr(); err != nil {
-				return nil, err
-			}
+			addr()
 			emit(0, 0)
 		case "call":
-			if e := need(1); e != nil {
-				return nil, e
+			need(1)
+			if parseErr == nil {
+				pendingCall = args[0] // decided on the next line (TCO)
+				args = args[1:]
 			}
-			pendingCall = args[0] // decided on the next line (TCO)
-			args = args[1:]
 		case "qdot":
-			if e := need(3); e != nil {
-				return nil, e
+			need(3)
+			d := reg()
+			label := ""
+			if parseErr == nil && len(args) >= 2 {
+				label, args = args[0], args[1:]
+				n, err := strconv.Atoi(args[0])
+				args = args[1:]
+				if err != nil || n < 1 || n > 16 {
+					fail(fmt.Errorf("lang: qdot count %q not in 1..16", args))
+				} else {
+					emit(opQdot, d)
+					fixups = append(fixups, fixup{at: len(prog), addr: label})
+					emit(0, 0, byte(n))
+				}
 			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			w := args[0]
-			args = args[1:]
-			n := args[0]
-			args = args[1:]
-			var nv int
-			if nv, err = strconv.Atoi(n); err != nil || nv < 1 || nv > 16 {
-				return nil, fmt.Errorf("lang: qdot count %q not in 1..16", n)
-			}
-			emit(opQdot, d)
-			fixups = append(fixups, fixup{at: len(prog), addr: w})
-			emit(0, 0, byte(nv))
 		case "ultra":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opUltra, r)
+			need(1)
+			emit(opUltra, reg())
 		case "lix":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(2)
+			d, a := reg(), reg()
 			emit(opLix, d, a)
 		case "six":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(2)
+			a, d := reg(), reg()
 			emit(opSix, a, d)
 		case "mov":
-			if e := need(2); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(2)
+			d, a := reg(), reg()
 			emit(opMov, d, a)
-		case "cwrite":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opCwrite, r)
-		case "cand":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opCand, r)
-		case "csum":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opCsum, r)
 		case "aadd":
-			if e := need(3); e != nil {
-				return nil, e
-			}
-			d, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			a, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			b, err = reg()
-			if err != nil {
-				return nil, err
-			}
+			need(3)
+			d, a, b := reg(), reg(), reg()
 			emit(opAadd, d, a, b)
+		case "cwrite":
+			need(1)
+			emit(opCwrite, reg())
+		case "cand":
+			need(1)
+			emit(opCand, reg())
+		case "csum":
+			need(1)
+			emit(opCsum, reg())
 		case "push":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opPush, r)
+			need(1)
+			emit(opPush, reg())
 		case "pop":
-			if e := need(1); e != nil {
-				return nil, e
-			}
-			r, err = reg()
-			if err != nil {
-				return nil, err
-			}
-			emit(opPop, r)
+			need(1)
+			emit(opPop, reg())
 		case "nop":
 			emit(opNop)
 		case "halt":
 			emit(opHalt)
 		default:
-			return nil, fmt.Errorf("lang: unknown mnemonic %q", m)
+			fail(fmt.Errorf("lang: unknown mnemonic %q", m))
 		}
 	}
 
+	if parseErr != nil {
+		return nil, parseErr
+	}
 	if pendingCall != "" {
 		flushCall(false) // a trailing call is never a tail call
 	}
