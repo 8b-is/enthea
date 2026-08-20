@@ -5,15 +5,34 @@ ALL before and around.
 
 ```
 NAND ──► NOT · AND · OR · XOR      every computable function is NAND
-  │      (Sheffer stroke, 1913)
-  │      all 16 binary Boolean    functional completeness, proven in
-  │      functions are NAND       TestFunctionalCompleteness — every
-  │      expressions (Post, 1921) 4-bit truth table, all four rows
+  │      (Sheffer stroke, 1913)    functional completeness, proven in
+  │      all 16 binary Boolean     TestFunctionalCompleteness (Post, 1921)
+  │      functions are NAND        — every 4-bit truth table, all four rows
+  │      expressions
   │
   └──► the ternary quantize        the BitNet b1.58 kernel, proven pure
           scale = max(mean|w|, 1e-7)
           codes = round(clamp(w/scale, -1, 1)) ∈ {−1, 0, +1}
 ```
+
+## Precision of claims (the honest reading)
+
+Two distinct theorems live here, and the shrine says so:
+
+- **NAND is functionally complete** — a *Sheffer function*: the only binary
+  Sheffer connectives are NAND and NOR, and every Boolean function is a finite
+  NAND composition. Proven runnably for all 16 binary functions.
+- **The quantizer is a pure function, not a complete operator.** It maps real
+  weights to `{-1, 0, +1}`; it is *not* a functionally complete connective.
+  "NAND to QUANT" is the **lineage** of the arc — from the universal gate to
+  the low-bit kernel — *not* a claim that the quantizer inherits
+  completeness.
+
+If a *ternary* completeness story is wanted, the correct theorem is **Post's
+n-valued logic (1921)**: every finite-valued logic has functionally complete
+connective sets, and 3-valued logic (Wajsberg algebras / MV-algebras,
+Łukasiewicz) has its own complete operators. That is a different, precise
+result — the quantizer is not one of them, and the shrine does not claim it is.
 
 ## The four tongues
 
