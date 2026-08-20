@@ -74,8 +74,8 @@ counter:
 	if m.Arena().View()[counter] != 0 {
 		t.Fatal("the arena counter did not reach 0")
 	}
-	if m.StackPeak() > 1 {
-		t.Fatalf("tail recursion grew the stack: peak %d frames", m.StackPeak())
+	if m.StackPeak() > 2 {
+		t.Fatalf("tail recursion grew the stack: peak %d bytes (one 2-byte frame)", m.StackPeak())
 	}
 	t.Log("120 tail-recursive iterations on a constant stack — TCO is a jump")
 }

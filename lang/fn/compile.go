@@ -60,9 +60,10 @@ func (c *cg) allocated() []byte {
 	return out
 }
 
-// mov emits d = s (r1 is the permanent zero).
+// mov emits d = s as a raw byte copy (the address domain: no clamp, so
+// pointers survive; cell values ≤ 13 copy identically).
 func (c *cg) mov(d, s byte) {
-	fmt.Fprintf(c.out, "tadd r%d r%d r%d\n", d, zeroReg, s)
+	fmt.Fprintf(c.out, "mov r%d r%d\n", d, s)
 }
 
 // Compile lowers a program to enthea bytecode.
@@ -125,6 +126,7 @@ func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 		thenL, endL := "L"+uniq(), "L"+uniq()
 		// jz fires when the condition is zero — which selects the THEN path
 		fmt.Fprintf(c.out, "jz r%d %s\n", cond, thenL)
+		c.freeTemps(cond) // dead after the jump
 		if tail {
 			// else-path first (fall-through), then-path, both end in ret
 			c.expr(x.Else, true, env)
@@ -187,6 +189,39 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 			return 0
 		}
 		return c.expr(p.Args[0], false, env)
+	case "load":
+		a := c.expr(p.Args[0], false, env)
+		if tail {
+			fmt.Fprintf(c.out, "lix r0 r%d\n", a) // dereference into r0
+			c.freeTemps(a)
+			return 0
+		}
+		out := c.fresh()
+		fmt.Fprintf(c.out, "lix r%d r%d\n", out, a)
+		c.freeTemps(a)
+		return out
+	case "aadd":
+		a := c.expr(p.Args[0], false, env)
+		b := c.expr(p.Args[1], false, env)
+		if tail {
+			c.mov(0, a)
+			return 0
+		}
+		out := c.fresh()
+		fmt.Fprintf(c.out, "aadd r%d r%d r%d\n", out, a, b)
+		c.freeTemps(a, b)
+		return out
+	case "store":
+		a := c.expr(p.Args[0], false, env)
+		v := c.expr(p.Args[1], false, env)
+		fmt.Fprintf(c.out, "six r%d r%d\n", a, v)
+		c.freeTemps(a, v)
+		if tail {
+			return 0
+		}
+		out := c.fresh()
+		c.mov(out, zeroReg)
+		return out
 	case "ultra":
 		v := c.expr(p.Args[0], false, env)
 		if tail {

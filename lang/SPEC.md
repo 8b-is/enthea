@@ -128,6 +128,29 @@ assignment, no mutation. It lowers to the register bytecode:
 
 Stage 2 rewrites this compiler in this language.
 
+## The metacircular seed
+
+The strongest self-hosting signal short of a full compiler: **an evaluator
+for the enthea language, written in the enthea language itself** (`fn`).
+It reads a tagged AST from the arena — `0` literal, `1` add, `2` mul,
+`3` sub, `8` and, `9` ultra — and walks it recursively. `eval(0)` computes
+`add(mul(3,2),4) = 10` and runs the ultra classifier, both proven by the
+machine.
+
+To get there the machine grew what real compilers need:
+
+- **16-bit addresses** — the ISA widened from a 256-byte program space to
+  64 KiB (little-endian operands, 2-byte return frames on the call stack).
+- **The value domain vs the address domain** — trit cells saturate at -13..13
+  (correct for ternary arithmetic), so `mov` and `aadd` are raw byte ops:
+  addresses live unclamped, values live in the cell. The evaluator reads
+  fields with `load(aadd(e, 1))`.
+- **The program rides high, the data rides low** — `NewVMAt` places the
+  program at an arena base; data (the AST) lives below it.
+
+Stage 2 grows this evaluator into the full compiler — still in this
+language.
+
 ## The bootstrap
 
 - **Stage 1 (this directory)** — the VM is Go. The arena is real; the letters
