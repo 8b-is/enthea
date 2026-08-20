@@ -31,7 +31,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.14"
+const version = "0.1.15"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
