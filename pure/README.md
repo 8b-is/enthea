@@ -120,3 +120,21 @@ glyphs where each letterform *is* its truth table (`alphabet.go`).
   idempotently: [`assets/alphabet.svg`](../assets/alphabet.svg), arranged by
   weight rows (1·4, 4·3, 6·2, 4·1, 1·0) — the Hasse lattice as a page of
   letters.
+
+## The Bayesian hypercube
+
+The shrine's fifth proof is the continuous one: the sixteen Boolean functions
+are the **vertices of the space [0,1]^4** of binary-conditional probabilities
+`P(Y=1 | A,B)` (`bayes.go`).
+
+- **`TestHypercubeExtremes`** — all 16 corners appear, each coordinate 0 or 1:
+  the functions are exactly the extreme points, the deterministic boundary.
+- **`TestConvexReconstruction`** — every interior point is a convex mixture
+  of the vertices: weights ≥ 0 summing to 1, and the mixture reproduces the
+  point. The **soft AND** `(0.02, 0.15, 0.20, 0.91)` — which has no
+  representation as a classical connective — is reconstructed from the
+  sixteen deterministic functions. NAND generates the vertices; the interior
+  needs mixtures.
+
+> Classical two-variable Boolean logic is the extremal boundary of a
+> continuous Bayesian conditional space.
