@@ -138,3 +138,23 @@ are the **vertices of the space [0,1]^4** of binary-conditional probabilities
 
 > Classical two-variable Boolean logic is the extremal boundary of a
 > continuous Bayesian conditional space.
+
+## The tesseract and its symmetry
+
+The shrine's sixth proof makes the geometry exact: the sixteen functions are
+the vertices of a genuine **four-dimensional cube** (`symmetry.go`).
+
+- **`TestOutputNegationReflection`** — the reflection is output negation: an
+  involution that pairs complements across the lattice (T↔F, NAND↔AND,
+  OR↔NOR, →↔NIMP, XOR↔XNOR) and reverses the order (f ≤ g iff ¬g ≤ ¬f).
+- **`TestNpnEquivalence`** — under permutations + negations of the inputs and
+  negation of the output (NPN), the sixteen collapse into exactly four orbits
+  of sizes **2, 4, 2, 8**: constants, the literals, XOR/XNOR, and the eight
+  AND-like connectives.
+- **`TestCubeSplitFaces`** — fixing any truth-table coordinate to 0 or 1
+  splits the tesseract into two ordinary **3-cube faces** of 8 vertices each.
+
+Together with the rank sequence 1·4, 4·3, 6·2, 4·1, 1·0, this is the
+vertex-skeleton of the four-cube — and the Bayesian observation is not
+imposed retrospectively: the functions were already the corners; the
+conditional space fills the edges, faces, and interior continuously.
