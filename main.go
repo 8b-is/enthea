@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/8b-is/enthea/compress"
 	"github.com/8b-is/enthea/internal/mcp"
 	"github.com/8b-is/enthea/internal/personas"
 	"github.com/8b-is/enthea/internal/ui"
@@ -31,7 +32,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.18"
+const version = "0.1.19"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -51,6 +52,7 @@ var registry = map[string]Command{
 	"quantctx": {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
 	"vakedc":   {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
 	"wire":     {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
+	"compress": {Help: "the marqant seam: quantum-compressed markdown, in pure Go", Run: runCompress},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -224,6 +226,8 @@ func runDoctor(_ context.Context, _ []string) error {
 	probes := []check{
 		{"go", func() (string, error) { return runtime.Version(), nil }},
 		{"kompress", func() (string, error) { return sh.Run("kompress", "persons") }},
+		{"marqant", func() (string, error) { return sh.Run("mq", "analyze", "-") }},
+		{"smart-tree", func() (string, error) { return sh.Run("st", "--version") }},
 		{"tailscale", func() (string, error) { return sh.Run("tailscale", "status") }},
 		{"entheai engine", func() (string, error) { return sh.Run("entheai", "--version") }},
 		{"surfaces", func() (string, error) {
@@ -510,6 +514,34 @@ func runWire(_ context.Context, args []string) error {
 	fmt.Printf("  checksum   the last trit is a 1-bit LLM: qdot against a\n")
 	fmt.Printf("             ternary weight vector, sharpened by ultra\n")
 	fmt.Printf("  round-trip byte-identical, verdict accepted\n")
+	return nil
+}
+
+// --- compress ---
+
+// runCompress demonstrates the marqant seam: markdown in, a token-dictionary
+// frame out, back byte-identical — the Rust compressor, ported to pure Go.
+func runCompress(_ context.Context, args []string) error {
+	doc := "# The towel\n\n## The most massively useful thing\n\n- it wraps for warmth\n- it lies for sunbathing\n- it folds as a pillow\n\n- it wraps for warmth\n- it lies for sunbathing\n- it folds as a pillow\n"
+	if len(args) > 0 {
+		data, err := os.ReadFile(args[0])
+		if err != nil {
+			return err
+		}
+		doc = string(data)
+	}
+	c := compress.Compress(doc)
+	back, err := compress.Decompress(c)
+	if err != nil {
+		return err
+	}
+	ok := back == doc
+	fmt.Printf("enthea compress — the marqant seam, pure Go\n\n")
+	fmt.Printf("  input     %d bytes of markdown\n", len(doc))
+	fmt.Printf("  frame     %d bytes (mq1: token dictionary + body)\n", len(c))
+	fmt.Printf("  ratio     %.0f%% smaller%s\n", compress.Ratio(doc, c)*100, map[bool]string{true: " — round-trip byte-identical", false: " — MISMATCH"}[ok])
+	fmt.Println()
+	fmt.Println("  the compressor enthea carries, no Rust in the binary.")
 	return nil
 }
 
