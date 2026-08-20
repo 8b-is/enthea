@@ -4,7 +4,10 @@
 // Venn regions), so the letterform IS the truth table.
 package pure
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Hex returns the hex digit for a function: its truth table as a nibble.
 // This is the alphabet's glyph id — 0..15, sixteen operator-letters.
