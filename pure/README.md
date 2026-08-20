@@ -70,3 +70,24 @@ by the test. The shipped module stays 100% pure Go; the shrine is build-gated,
 never linked into `enthea`.
 
 *NAND is functionally complete · the quant is pure · the relation is lineage, not derivation*
+
+## Before Turing — the first mapper
+
+The shrine's deepest ancestor is Platon. The Theory of Forms is the
+philosophical origin of the pure function: a function is a form — an eternal,
+timeless mapping from every possible input to its one true value, which the
+particular computations only imitate. The Allegory of the Cave is the data
+flow: the shadows on the wall are the inputs, the Forms are the outputs, the
+ascent is the mapping. The tripartite soul is Plato's own ternary — reason,
+spirit, appetite. And the Academy was the first school: the constellation of
+minds, learning by dialogue.
+
+And the *Symposium* gives the shrine its motive: **Diotima's ladder** is love
+as ascent from the many to the one — the purest mapping there is; and
+**Aristophanes' sphere** is the myth of the whole we were cut from — the
+sphere of love, the constellation's own signature. Every ascent begins with a
+single act of love.
+
+NAND is the seed of computation. Plato is the seed of the seed — the first to
+see that the map is more real than the territory, and that love climbs the
+ladder.
