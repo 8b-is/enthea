@@ -112,6 +112,22 @@ aspirations:
   `qdot`/`ultra` are its sharpening. The Bayesian interior is not dropped
   anywhere.
 
+## The pure surface (`fn`)
+
+The register machine is the compiler's business, never the programmer's.
+`lang/fn` is a pure functional language on top: expressions over the sixteen
+letters, balanced-ternary arithmetic, `let`, `if`, and recursion — no
+assignment, no mutation. It lowers to the register bytecode:
+
+- **Callee-saved registers** — a call spills every live temporary and pops it
+  on return, so recursive frames never clobber each other (factorial works).
+- **Tail calls need no spill** — the caller is dead, so `call L; ret` becomes
+  `jmp L`: pure tail recursion runs on a constant stack.
+- **The ultra classifier is an expression** — `ultra(dot(...))` is pure
+  functions and weights, nothing else.
+
+Stage 2 rewrites this compiler in this language.
+
 ## The bootstrap
 
 - **Stage 1 (this directory)** — the VM is Go. The arena is real; the letters
