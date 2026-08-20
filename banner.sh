@@ -43,3 +43,14 @@ done
 
 # the constellation, pure ascii — a whisper, not a shout
 printf '%s\n' "   vaked.dev"
+
+# the whale of the sky and the dolphins of the ocean
+printf '%s\n' \
+  "      .-~~~-.                 ,-\"-,." \
+  "  .- ~ ~-(       )_ _        /_/| .\\\\" \
+  " /                     ~ -. /~ /| \\\\\\\\" \
+  "|                          \\' | / | ~/" \
+  " \\                         .'  \`'  Y'" \
+  "   ~- ._ ,. ,.,.,., .__..-~"
+
+printf '%s\n' "DON'T PANIC — and know where your towel is."

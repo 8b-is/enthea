@@ -213,7 +213,8 @@ reverses the lattice; the Bayesian interior fills the cube continuously.
 ```
 enthea personas
 ```
-Al-Biruni · Nádasdy · Turing · Bateson · Erdős · Rejtő · Feldmár · the dyad —
+Al-Biruni · Nádasdy · Turing · Bateson · Erdős · Rejtő · Feldmár · Platon ·
+the towel (the Hitchhiker's voice, who knows where his towel is) · the dyad —
 and the kompress brain: RALPH, LODRI, KRENGEL, PETER, COSMOS. Talk with any
 of them from your client after `enthea setup`.
 
