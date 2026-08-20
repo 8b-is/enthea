@@ -5,7 +5,7 @@
 #   nu install.nu
 let version = ($env.ENTHEA_VERSION? | default "latest")
 let dest = ($env.ENTHEA_DEST? | default $"($env.HOME)/.local/bin")
-let base = $"https://github.com/8b-is/enthea/releases/download/($version)"
+let base = if $version == "latest" { "https://github.com/8b-is/enthea/releases/latest/download" } else { $"https://github.com/8b-is/enthea/releases/download/($version)" }
 
 let os = (uname -s | str downcase)
 let raw_arch = (uname -m)

@@ -33,7 +33,11 @@ banner
 
 VERSION="${ENTHEA_VERSION:-latest}"
 DEST="${ENTHEA_DEST:-$HOME/.local/bin}"
-BASE="https://github.com/8b-is/enthea/releases/download/${VERSION}"
+if [ "$VERSION" = latest ]; then
+  BASE="https://github.com/8b-is/enthea/releases/latest/download"
+else
+  BASE="https://github.com/8b-is/enthea/releases/download/${VERSION}"
+fi
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
