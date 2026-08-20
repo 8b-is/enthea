@@ -109,6 +109,67 @@ func TestNandSeedProve(t *testing.T) {
 	t.Log("NAND → NOT/AND/OR/XOR: all truth tables hold — one gate, everything")
 }
 
+// TestFunctionalCompleteness — the seed is complete: every one of the 16
+// binary Boolean functions is expressible with NAND alone. Sheffer (1913),
+// Post (1921): NAND is a functionally complete connective. We build each
+// function as a disjunctive normal form over NAND-derived NOT/AND/OR and
+// verify all four rows of its truth table.
+func TestFunctionalCompleteness(t *testing.T) {
+	nand := func(a, b int) int {
+		if a == 1 && b == 1 {
+			return 0
+		}
+		return 1
+	}
+	not := func(a int) int { return nand(a, a) }
+	and := func(a, b int) int { return not(nand(a, b)) }
+	or := func(a, b int) int { return nand(not(a), not(b)) }
+	lit := func(x, neg int) int {
+		if neg == 1 {
+			return not(x)
+		}
+		return x
+	}
+
+	// each function = its 4-bit truth table (f00 f01 f10 f11)
+	built := 0
+	for tt := 0; tt < 16; tt++ {
+		f := func(a, b int) int {
+			// DNF: OR of (literal_a AND literal_b) over the rows where f=1
+			rows := []int{}
+			if tt&1 != 0 {
+				rows = append(rows, 0)
+			} // (0,0)
+			if tt&2 != 0 {
+				rows = append(rows, 1)
+			} // (0,1)
+			if tt&4 != 0 {
+				rows = append(rows, 2)
+			} // (1,0)
+			if tt&8 != 0 {
+				rows = append(rows, 3)
+			} // (1,1)
+			acc := 0
+			for _, r := range rows {
+				ra, rb := r>>1&1, r&1
+				term := and(lit(a, ra^1), lit(b, rb^1)) // literal = variable unless the row negates it
+				acc = or(acc, term)
+			}
+			return acc
+		}
+		for a := 0; a <= 1; a++ {
+			for b := 0; b <= 1; b++ {
+				want := (tt >> (a*2 + b)) & 1
+				if f(a, b) != want {
+					t.Fatalf("function %04b fails at (%d,%d)", tt, a, b)
+				}
+			}
+		}
+		built++
+	}
+	t.Logf("all %d binary Boolean functions expressible from NAND alone — the seed is complete", built)
+}
+
 // ExampleTernary4 documents the worked example in runnable form.
 func ExampleTernary4() {
 	codes, scale := Ternary4(WorkedExample)
