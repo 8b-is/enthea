@@ -61,7 +61,7 @@ func (f F) GlyphSVG() string {
 	}
 	b.WriteString(`<text x="20" y="46" font-size="13" fill="#c77dff">` + string(f.Hex()) + `</text>`)
 	if n := f.Name(); n != "" {
-		b.WriteString(`<text x="20" y="58" font-size="8" fill="#a59fc4">` + n + `</text>`)
+		b.WriteString(`<text x="20" y="58" font-size="8" fill="#a59fc4">` + xmlEscape(n) + `</text>`)
 	}
 	b.WriteString(`</g>`)
 	return b.String()
@@ -80,6 +80,24 @@ func AlphabetSVG() string {
 		b.WriteString(`<g transform="translate(` + itoa(x) + `,` + itoa(y) + `)">` + c.F.GlyphSVG() + `</g>`)
 	}
 	b.WriteString(`</svg>`)
+	return b.String()
+}
+
+// xmlEscape makes a string safe inside XML text content.
+func xmlEscape(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case '&':
+			b.WriteString("&amp;")
+		case '<':
+			b.WriteString("&lt;")
+		case '>':
+			b.WriteString("&gt;")
+		default:
+			b.WriteRune(r)
+		}
+	}
 	return b.String()
 }
 
