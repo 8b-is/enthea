@@ -26,9 +26,10 @@ import (
 	"github.com/8b-is/enthea/internal/personas"
 	"github.com/8b-is/enthea/internal/ui"
 	"github.com/8b-is/enthea/lang"
+	"github.com/8b-is/enthea/lang/fn"
 )
 
-const version = "0.1.8"
+const version = "0.1.9"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -43,6 +44,7 @@ var registry = map[string]Command{
 	"setup":    {Help: "wire MCP + personas into a client (opencode, charm, …)", Run: runSetup},
 	"doctor":   {Help: "check the engine and constellation surfaces", Run: runDoctor},
 	"lang":     {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
+	"fn":       {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -304,6 +306,43 @@ weights:
 	fmt.Printf("  result      ultra(qdot([1,0,-1,1]·[1,-1,1,1])) = %d\n", regs[4])
 	fmt.Println()
 	fmt.Println("  NAND seeded the sixteen; the sixteen are the opcodes; the arena is the world.")
+	return nil
+}
+
+// --- fn ---
+
+// runFn compiles a pure functional expression and runs it on the machine.
+func runFn(_ context.Context, args []string) error {
+	src := `let x0 = 1 in let x1 = 0 in let x2 = -1 in let x3 = 1 in
+ultra(add(mul(x0, 1), add(mul(x1, -1), add(mul(x2, 1), mul(x3, 1)))))`
+	if len(args) > 0 {
+		src = strings.Join(args, " ")
+	}
+	fns, main, err := fn.Parse(src)
+	if err != nil {
+		return err
+	}
+	prog, err := fn.Compile(fns, main)
+	if err != nil {
+		return err
+	}
+	vm, err := lang.NewVM(prog, 4096)
+	if err != nil {
+		return err
+	}
+	defer vm.Arena().Close()
+	if err := vm.Run(100000); err != nil {
+		return err
+	}
+	result := vm.Regs()[0]
+	total, _, _ := vm.Arena().Stats()
+	fmt.Printf("enthea fn — the pure surface, on the machine\n\n")
+	fmt.Printf("  source      %q\n", src)
+	fmt.Printf("  bytecode    %3d bytes into the arena (of %d)\n", len(prog), total)
+	fmt.Printf("  call stack  peaked at %d byte(s)\n", vm.StackPeak())
+	fmt.Printf("  result      %d\n", result)
+	fmt.Println()
+	fmt.Println("  expressions over the sixteen letters; registers are the compiler's business.")
 	return nil
 }
 
