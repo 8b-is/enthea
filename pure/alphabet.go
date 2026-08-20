@@ -105,5 +105,5 @@ func xmlEscape(s string) string {
 }
 
 func itoa(n int) string {
-	return string(rune('0'+n/10)) + string(rune('0'+n%10))
+	return strconv.Itoa(n)
 }
