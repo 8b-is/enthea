@@ -187,6 +187,24 @@ In the pure language the window is just expressions: `ctxwrite`,
 `ctxand`, `ctxsum`. The bus's 1-bit models can each carry one of these
 windows — a channel of minds, each with a living quantized memory.
 
+## vakedc: the capability-graph assembler
+
+The instruction set is a graph, not a table. `vakedc` closes {A, B} under
+NAND by breadth-first depth — the lattice we proved, walked — and for any
+requested capability emits a NAND-only program for the machine:
+
+- **Completeness is executable** — all sixteen functions are synthesized
+  from one primitive and verified on the machine (the test runs every
+  letter × every input).
+- **Costs are the closure depth** — NOT 1 · AND 2 · OR 3 (XOR lands at 5
+  here; the circuit-minimal 4 needs shared-DAG synthesis).
+- **Reduced ISA targeting** — since the graph rebuilds every letter from
+  NAND, the assembler can target any sub-ISA: the sixteen letters, or a
+  machine with only NAND and memory.
+
+`enthea vakedc` prints the graph: each letter, its NAND cost, and the first
+synthesis step. Stage 2's compiler is the graph, applied upward.
+
 ## The bootstrap
 
 - **Stage 1 (this directory)** — the VM is Go. The arena is real; the letters

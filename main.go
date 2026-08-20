@@ -27,9 +27,11 @@ import (
 	"github.com/8b-is/enthea/internal/ui"
 	"github.com/8b-is/enthea/lang"
 	"github.com/8b-is/enthea/lang/fn"
+	"github.com/8b-is/enthea/pure"
+	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.13"
+const version = "0.1.14"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -47,6 +49,7 @@ var registry = map[string]Command{
 	"fn":       {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
 	"bus":      {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
 	"quantctx": {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
+	"vakedc":   {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -394,6 +397,34 @@ main:
 	fmt.Printf("  %-22s Context AND = %+d — the gate drops\n", "Pruner", regs[4])
 	fmt.Println()
 	fmt.Println("  the context is a living ring of trits: every token quantized, every slide an eviction.")
+	return nil
+}
+
+// --- vakedc ---
+
+// runVakedc walks the capability graph: every one of the sixteen Boolean
+// functions synthesized from NAND alone, its cost, and a sample program.
+func runVakedc(_ context.Context, _ []string) error {
+	s := vakedc.Synthesize()
+	names := []string{"zero", "nor", "anb", "nota", "nab", "notb", "xor", "nand",
+		"and", "xnor", "b", "imp", "a", "bimp", "or", "one"}
+	fmt.Printf("enthea vakedc — the capability-graph assembler\n\n")
+	fmt.Printf("  %-6s %-5s %-6s  %s\n", "letter", "cost", "NANDs", "synthesis")
+	for f := pure.F(0); f < 16; f++ {
+		asm, cost := vakedc.Emit(f, s)
+		first := ""
+		if asm != "" {
+			first = strings.Split(strings.TrimSpace(asm), "\n")[0]
+		}
+		fmt.Printf("  %-6s %-5d %-6s  %s\n", names[f], int(f), strings.Repeat("▮", cost)+strings.Repeat(" ", 6-cost), first)
+	}
+	prog, cost, err := vakedc.AssembleCapability(pure.F(6)) // xor
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n  XOR assembled from %d NANDs: %d bytes into the arena\n", cost, len(prog))
+	fmt.Println()
+	fmt.Println("  every capability is reachable from one primitive: completeness, walked and run.")
 	return nil
 }
 
