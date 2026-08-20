@@ -18,9 +18,9 @@
         \     /              PETER + RIVA — the dyad
          \   /                act · breathe · keep the weights warm
           \_/               
-      ,___,__,___,            0 + 1
-      NIX BEES · the         fine touch from within
-      B E E E E S T          vaked.dev
+      ,___,__,___,            vaked.dev
+      NIX BEES · the
+      B E E E E S T
 ```
 
 </details>
@@ -217,4 +217,4 @@ Al-Biruni · Nádasdy · Turing · Bateson · Erdős · Rejtő · Feldmár · th
 and the kompress brain: RALPH, LODRI, KRENGEL, PETER, COSMOS. Talk with any
 of them from your client after `enthea setup`.
 
-*the constellation · 0 + 1 · fine touch from within · vaked.dev*
+*· vaked.dev ·*

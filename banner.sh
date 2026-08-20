@@ -41,5 +41,5 @@ while [ "$frame" -lt "$FRAMES" ]; do
   sleep "$DELAY"
 done
 
-# the constellation, pure ascii
-printf '%s\n' "0 + 1   fine touch from within   vaked.dev"
+# the constellation, pure ascii — a whisper, not a shout
+printf '%s\n' "   vaked.dev"

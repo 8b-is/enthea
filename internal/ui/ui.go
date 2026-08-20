@@ -81,8 +81,8 @@ func Err(text string) {
 	fmt.Println("  " + Red("✗") + " " + text)
 }
 
-// Sig prints the constellation signature footer.
+// Sig prints the constellation signature footer — a whisper, not a shout.
 func Sig() {
 	fmt.Println()
-	fmt.Println(Dim("the constellation · 0 + 1 · fine touch from within · vaked.dev"))
+	fmt.Println(Dim("· vaked.dev ·"))
 }

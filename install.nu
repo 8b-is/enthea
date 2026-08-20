@@ -27,7 +27,7 @@ def wave-banner [] {
             } | str join)
         } | str join "\n"
     } | str join "\n\n"
-    print "0 + 1   fine touch from within   vaked.dev"
+    print "   vaked.dev"
 }
 
 # --- tiny UI (pure, no deps) ---
