@@ -29,7 +29,7 @@ import (
 	"github.com/8b-is/enthea/lang/fn"
 )
 
-const version = "0.1.10"
+const version = "0.1.11"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -45,6 +45,7 @@ var registry = map[string]Command{
 	"doctor":   {Help: "check the engine and constellation surfaces", Run: runDoctor},
 	"lang":     {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
 	"fn":       {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
+	"bus":      {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -343,6 +344,60 @@ ultra(add(mul(x0, 1), add(mul(x1, -1), add(mul(x2, 1), mul(x3, 1)))))`
 	fmt.Printf("  result      %d\n", result)
 	fmt.Println()
 	fmt.Println("  expressions over the sixteen letters; registers are the compiler's business.")
+	return nil
+}
+
+// --- bus ---
+
+// runBus posts a channel of 1-bit models and prints each classification.
+func runBus(_ context.Context, _ []string) error {
+	const model = `
+main:
+  ldi r0 1
+  ldi r1 0
+  ldi r2 -1
+  ldi r3 1
+  qdot r0 weights 4
+  ultra r0
+  halt
+weights:
+  .byte 0 0 0 0
+`
+	prog, err := lang.Assemble(model)
+	if err != nil {
+		return err
+	}
+	weightsAddr := len(prog) - 4
+	models := [][4]int8{
+		{1, -1, 1, 1},
+		{-1, 1, 1, 1},
+		{0, 0, 0, 0},
+		{1, -1, -1, 1},
+		{-1, -1, 1, -1},
+	}
+	bus := lang.NewBus(4, 8, 4096)
+	defer bus.Close()
+	go func() {
+		for i, w := range models {
+			bus.Post(lang.Message{ID: i, Prog: prog, Data: map[int]int8{
+				weightsAddr: w[0], weightsAddr + 1: w[1],
+				weightsAddr + 2: w[2], weightsAddr + 3: w[3],
+			}})
+		}
+	}()
+	fmt.Printf("enthea bus — a Go channel of 1-bit models\n\n")
+	fmt.Printf("  %-24s %-24s %s\n", "ternary weights", "input [1,0,-1,1]", "ultra(dot)")
+	seen := 0
+	for r := range bus.Results() {
+		w := models[r.ID]
+		fmt.Printf("  [%+d %+d %+d %+d] %21s  %+d\n", w[0], w[1], w[2], w[3], "→", r.Cell)
+		seen++
+		if seen == len(models) {
+			break
+		}
+	}
+	fmt.Println()
+	fmt.Println("  every channel item is an executable model: weights in, classification out.")
 	return nil
 }
 

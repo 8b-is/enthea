@@ -151,6 +151,20 @@ To get there the machine grew what real compilers need:
 Stage 2 grows this evaluator into the full compiler — still in this
 language.
 
+## The bus: items in a Go channel are 1-bit models
+
+The idea is not a metaphor. The machine's cells are trits `{-1,0,+1}` — the
+exact alphabet of a 1-bit LLM (BitNet b1.58). So a channel item is a
+program (the sixteen letters) plus a region of ternary weights, and `qdot` +
+`ultra` are the inference. A Go channel carries **executable models**:
+workers load each message into a fresh arena, run it, and emit the
+classification. `enthea bus` demonstrates five weight sets → five
+classifications, each computed on its own arena.
+
+The bus is the agent layer: not messages to be parsed, but miniature
+reasoning units to be run. Stage 2's compiler emits them; the MCP server
+routes them.
+
 ## The bootstrap
 
 - **Stage 1 (this directory)** — the VM is Go. The arena is real; the letters
