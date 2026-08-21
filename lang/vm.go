@@ -3,7 +3,9 @@ package lang
 import "fmt"
 
 // Cell is a trit cell: one balanced-ternary byte, three trits, range -13..+13.
-type Cell = int8
+// The register is int16 so addresses up to the arena's 4096 bytes fit
+// naturally — values stay in the cell range by clamp, addresses stay raw.
+type Cell = int16
 
 // Balanced-ternary trit encoding: each trit t ∈ {-1,0,+1}; a cell is three
 // trits (t2·9 + t1·3 + t0). -1 is the unknown, propagated by the letters.
@@ -24,35 +26,51 @@ func clamp(v int) Cell {
 
 // opcodes — 0x00..0x0f are the sixteen Boolean letters; 0x10+ the spine.
 const (
-	opZero   = 0x00
-	opOne    = 0x0f
-	opLdi    = 0x10
-	opLd     = 0x11
-	opSt     = 0x12
-	opTadd   = 0x13
-	opTmul   = 0x14
-	opJmp    = 0x15
-	opJz     = 0x16
-	opJnz    = 0x17
-	opCall   = 0x18
-	opRet    = 0x19
-	opPush   = 0x1a
-	opPop    = 0x1b
-	opQdot   = 0x1c // MLX-QUANT seam: ternary-quantized dot product
-	opUltra  = 0x1d // the b1.58 hard activation: soft interior → {-1,0,+1}
-	opNop    = 0x1e
-	opHalt   = 0x1f
-	opLix    = 0x20 // indexed load:  d ← arena[a]
-	opSix    = 0x21 // indexed store: arena[a] ← d
-	opMov    = 0x22 // raw byte copy (address domain): d ← s, no clamp
+	opZero  = 0x00
+	opOne   = 0x0f
+	opLdi   = 0x10
+	opLd    = 0x11
+	opSt    = 0x12
+	opTadd  = 0x13
+	opTmul  = 0x14
+	opJmp   = 0x15
+	opJz    = 0x16
+	opJnz   = 0x17
+	opCall  = 0x18
+	opRet   = 0x19
+	opPush  = 0x1a
+	opPop   = 0x1b
+	opQdot  = 0x1c // MLX-QUANT seam: ternary-quantized dot product
+	opUltra = 0x1d // the b1.58 hard activation: soft interior → {-1,0,+1}
+	opNop   = 0x1e
+	opHalt  = 0x1f
+	opLix   = 0x20 // indexed load:  d ← arena[a]
+	opSix   = 0x21 // indexed store: arena[a] ← d
+	opMov   = 0x22 // raw byte copy (address domain): d ← s, no clamp
+	opLdib  = 0x28 // load byte immediate, UNSIGNED 0..255 (addresses, not cells)
+	opAsub  = 0x29 // raw byte subtract (address domain): d ← a−b, no clamp
+	opQmat  = 0x27 // the MLX-QUANT matrix kernel: a quantized linear layer
+	// over the register matrix — per row: qdot against the arena weights, ultra
 	opAadd   = 0x23 // raw byte add (address domain): d ← a+b, no clamp
 	opCwrite = 0x24 // quant-ctx: slide a token into the context window
 	opCand   = 0x25 // quant-ctx: r = Context AND over the window
 	opCsum   = 0x26 // quant-ctx: r = Context sum (the gate's vote)
 )
 
-// Registers is the register file: 16 trit cells.
-type Registers [16]Cell
+// Registers is the register file: a dynamically-resizable matrix of trit
+// cells. It starts at 16 rows and grows on demand — the register file IS the
+// MLX-QUANT-style kernel: a quantized cell matrix, shaped at runtime, with
+// qdot/ultra as the kernel operations over it.
+type Registers []Cell
+
+// reg returns the cell at row i, growing the matrix as needed.
+func (v *VM) reg(i byte) *Cell {
+	if int(i) >= len(v.regs) {
+		grow := make([]Cell, int(i)-len(v.regs)+1)
+		v.regs = append(v.regs, grow...)
+	}
+	return &v.regs[i]
+}
 
 // VM is the enthea bytecode machine. All memory — program, heap, stack —
 // lives inside one arena the VM owns.
@@ -102,7 +120,7 @@ func NewVMAt(prog []byte, arenaSize, progBase int) (*VM, error) {
 		a.Close()
 		return nil, fmt.Errorf("lang: no room for the context window (program too large)")
 	}
-	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1, ctxBase: ctxBase, ctxLen: ctxLen}
+	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], regs: make(Registers, 16), heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1, ctxBase: ctxBase, ctxLen: ctxLen}
 	return vm, nil
 }
 
@@ -142,7 +160,12 @@ func (v *VM) step() {
 	v.steps++
 	op := v.prog[v.ip]
 	v.ip++
-	ops[op](v)
+	f := ops[op]
+	if f == nil {
+		v.err = fmt.Errorf("lang: unimplemented opcode 0x%02x at %d", op, v.ip-1)
+		return
+	}
+	f(v)
 }
 
 func (v *VM) fetchByte() byte {
@@ -171,7 +194,13 @@ func init() {
 	ops[opLdi] = func(v *VM) {
 		r := v.fetchByte()
 		imm := Cell(int8(v.fetchByte()))
-		v.regs[r%16] = imm
+		*v.reg(r) = imm
+	}
+	ops[opLdib] = func(v *VM) {
+		// the address lane: an unsigned byte 0..255, so addresses above 127
+		// stay positive in the int16 register file
+		r := v.fetchByte()
+		*v.reg(r) = Cell(v.fetchByte())
 	}
 	ops[opLd] = func(v *VM) {
 		r := v.fetchByte()
@@ -180,7 +209,7 @@ func init() {
 			v.err = fmt.Errorf("lang: load from %d outside arena", addr)
 			return
 		}
-		v.regs[r%16] = Cell(int8(v.arena.data[addr]))
+		*v.reg(r) = Cell(int8(v.arena.data[addr]))
 	}
 	ops[opSt] = func(v *VM) {
 		addr := v.fetchAddr()
@@ -189,40 +218,41 @@ func init() {
 			v.err = fmt.Errorf("lang: store to %d outside arena", addr)
 			return
 		}
-		v.arena.data[addr] = byte(v.regs[r%16])
+		v.arena.data[addr] = byte(*v.reg(r))
 	}
 	ops[opTadd] = func(v *VM) {
 		d, a, b := v.fetchByte(), v.fetchByte(), v.fetchByte()
-		v.regs[d%16] = clamp(int(v.regs[a%16]) + int(v.regs[b%16]))
+		*v.reg(d) = clamp(int(*v.reg(a)) + int(*v.reg(b)))
 	}
 	ops[opTmul] = func(v *VM) {
 		d, a, b := v.fetchByte(), v.fetchByte(), v.fetchByte()
-		v.regs[d%16] = clamp(int(v.regs[a%16]) * int(v.regs[b%16]))
+		*v.reg(d) = clamp(int(*v.reg(a)) * int(*v.reg(b)))
 	}
 	ops[opJmp] = func(v *VM) { v.ip = v.fetchAddr() }
 	ops[opJz] = func(v *VM) {
 		r := v.fetchByte()
 		addr := v.fetchAddr()
-		if v.regs[r%16] == 0 {
+		if *v.reg(r) == 0 {
 			v.ip = addr
 		}
 	}
 	ops[opJnz] = func(v *VM) {
 		r := v.fetchByte()
 		addr := v.fetchAddr()
-		if v.regs[r%16] != 0 {
+		if *v.reg(r) != 0 {
 			v.ip = addr
 		}
 	}
 	ops[opCall] = func(v *VM) {
 		addr := v.fetchAddr()
-		if v.sp-1 <= v.heapOff {
+		if v.sp-2 <= v.heapOff {
 			v.err = fmt.Errorf("lang: call stack overflow at %d", v.ip-2)
 			return
 		}
-		// return address: 16-bit, pushed as lo then hi
-		v.arena.data[v.sp] = byte(v.ip)
-		v.arena.data[v.sp-1] = byte(v.ip >> 8)
+		// the return address sits BELOW the caller's spills (sp-1, sp-2), so
+		// it never overwrites the last pushed register
+		v.arena.data[v.sp-1] = byte(v.ip)
+		v.arena.data[v.sp-2] = byte(v.ip >> 8)
 		v.sp -= 2
 		if v.sp < v.stackLo {
 			v.stackLo = v.sp
@@ -235,15 +265,17 @@ func init() {
 			return
 		}
 		v.sp += 2
-		v.ip = int(v.arena.data[v.sp]) | int(v.arena.data[v.sp-1])<<8
+		v.ip = int(v.arena.data[v.sp-1]) | int(v.arena.data[v.sp-2])<<8
 	}
 	ops[opPush] = func(v *VM) {
 		r := v.fetchByte()
-		if v.sp <= v.heapOff {
+		if v.sp-1 <= v.heapOff {
 			v.err = fmt.Errorf("lang: data stack overflow at %d", v.ip-1)
 			return
 		}
-		v.arena.data[v.sp] = byte(v.regs[r%16])
+		// the "below-top" convention, shared with call/ret: the top byte is
+		// sp-1, so a push never overwrites a return address above it
+		v.arena.data[v.sp-1] = byte(*v.reg(r))
 		v.sp--
 		if v.sp < v.stackLo {
 			v.stackLo = v.sp
@@ -256,7 +288,7 @@ func init() {
 			return
 		}
 		v.sp++
-		v.regs[r%16] = Cell(int8(v.arena.data[v.sp]))
+		*v.reg(r) = Cell(int8(v.arena.data[v.sp-1]))
 	}
 	ops[opQdot] = func(v *VM) {
 		// MLX-QUANT seam: a ternary-quantized dot product. Inputs are the
@@ -274,24 +306,24 @@ func init() {
 		}
 		sum := 0
 		for i := 0; i < n; i++ {
-			wi := int(int8(v.arena.data[w+i])) // the ternary weight {-1,0,+1}
-			xi := int(v.regs[i%16])            // the ternary input
+			wi := int(v.arena.CellAt(w + i)) // the ternary weight, from the quantized plane
+			xi := int(*v.reg(byte(i)))       // the ternary input
 			sum += wi * xi
 		}
-		v.regs[d%16] = clamp(sum)
+		*v.reg(d) = clamp(sum)
 	}
 	ops[opUltra] = func(v *VM) {
 		// the b1.58 hard activation: the soft interior is sharpened to the
 		// ternary alphabet {0, +1} / {-1}.
 		r := v.fetchByte()
-		c := v.regs[r%16]
+		c := *v.reg(r)
 		switch {
 		case c > 0:
-			v.regs[r%16] = 1
+			*v.reg(r) = 1
 		case c < 0:
-			v.regs[r%16] = -1
+			*v.reg(r) = -1
 		default:
-			v.regs[r%16] = 0
+			*v.reg(r) = 0
 		}
 	}
 	ops[opNop] = func(v *VM) {}
@@ -299,36 +331,78 @@ func init() {
 	ops[opLix] = func(v *VM) {
 		d := v.fetchByte()
 		a := v.fetchByte()
-		if int(v.regs[a%16]) < 0 || int(v.regs[a%16]) >= len(v.arena.data) {
-			v.err = fmt.Errorf("lang: indexed load from %d outside arena", v.regs[a%16])
+		idx := int(*v.reg(a)) // the full int16 register addresses the arena
+		if idx < 0 || idx >= len(v.arena.data) {
+			v.err = fmt.Errorf("lang: indexed load from %d outside arena", idx)
 			return
 		}
-		v.regs[d%16] = Cell(int8(v.arena.data[v.regs[a%16]]))
+		*v.reg(d) = Cell(int8(v.arena.data[idx]))
 	}
 	ops[opSix] = func(v *VM) {
 		a := v.fetchByte()
 		d := v.fetchByte()
-		if int(v.regs[a%16]) < 0 || int(v.regs[a%16]) >= len(v.arena.data) {
-			v.err = fmt.Errorf("lang: indexed store to %d outside arena", v.regs[a%16])
+		idx := int(*v.reg(a)) // the full int16 register addresses the arena
+		if idx < 0 || idx >= len(v.arena.data) {
+			v.err = fmt.Errorf("lang: indexed store to %d outside arena", idx)
 			return
 		}
-		v.arena.data[v.regs[a%16]] = byte(v.regs[d%16])
+		v.arena.data[idx] = byte(*v.reg(d))
 	}
 	ops[opMov] = func(v *VM) {
 		d := v.fetchByte()
 		s := v.fetchByte()
-		v.regs[d%16] = v.regs[s%16] // raw, no clamp: addresses are bytes
+		*v.reg(d) = *v.reg(s) // raw, no clamp: addresses stay raw
 	}
 	ops[opAadd] = func(v *VM) {
 		d := v.fetchByte()
 		a := v.fetchByte()
 		b := v.fetchByte()
-		v.regs[d%16] = Cell(int8(byte(v.regs[a%16] + v.regs[b%16]))) // raw, no clamp
+		*v.reg(d) = *v.reg(a) + *v.reg(b) // raw int16 add, no clamp
+	}
+	ops[opAsub] = func(v *VM) {
+		d := v.fetchByte()
+		a := v.fetchByte()
+		b := v.fetchByte()
+		*v.reg(d) = *v.reg(a) - *v.reg(b) // raw int16 subtract, no clamp
+	}
+	ops[opQmat] = func(v *VM) {
+		// the MLX-QUANT matrix kernel: registers d..d+rows·cols-1 form a
+		// rows×cols matrix of ternary cells. For each row, qdot the row
+		// against `cols` ternary weights at arena[w], then ultra — the
+		// b1.58 linear layer over the register matrix. Activations land in
+		// registers d..d+rows-1. The matrix is shaped at runtime.
+		d := v.fetchByte()
+		rows := int(v.fetchByte())
+		cols := int(v.fetchByte())
+		w := v.fetchAddr()
+		if rows < 1 || cols < 1 || rows*cols > 255 {
+			v.err = fmt.Errorf("lang: qmat shape %dx%d out of range", rows, cols)
+			return
+		}
+		if w < 0 || w+cols > len(v.arena.data) {
+			v.err = fmt.Errorf("lang: qmat weights %d..%d outside arena", w, w+cols)
+			return
+		}
+		for r := 0; r < rows; r++ {
+			sum := 0
+			for c := 0; c < cols; c++ {
+				wi := int(int8(v.arena.data[w+c])) // ternary weight {-1,0,+1}
+				xi := int(*v.reg(byte(d) + byte(r*cols+c)))
+				sum += wi * xi
+			}
+			act := sum
+			if act > 0 {
+				act = 1
+			} else if act < 0 {
+				act = -1
+			}
+			*v.reg(byte(d) + byte(r)) = Cell(act)
+		}
 	}
 	ops[opCwrite] = func(v *VM) {
 		r := v.fetchByte()
-		v.arena.data[v.ctxBase+v.ctxPos] = byte(v.regs[r%16]) // slide in
-		v.ctxPos = (v.ctxPos + 1) % v.ctxLen                  // evict the oldest
+		v.arena.data[v.ctxBase+v.ctxPos] = byte(*v.reg(r)) // slide in
+		v.ctxPos = (v.ctxPos + 1) % v.ctxLen               // evict the oldest
 	}
 	ops[opCand] = func(v *VM) {
 		r := v.fetchByte()
@@ -336,7 +410,7 @@ func init() {
 		for i := 0; i < v.ctxLen; i++ {
 			acc = tritAnd(acc, Cell(int8(v.arena.data[v.ctxBase+i])))
 		}
-		v.regs[r%16] = acc
+		*v.reg(r) = acc
 	}
 	ops[opCsum] = func(v *VM) {
 		r := v.fetchByte()
@@ -344,7 +418,7 @@ func init() {
 		for i := 0; i < v.ctxLen; i++ {
 			sum += int(int8(v.arena.data[v.ctxBase+i]))
 		}
-		v.regs[r%16] = clamp(sum)
+		*v.reg(r) = clamp(sum)
 	}
 }
 
@@ -373,8 +447,8 @@ func (v *VM) execLetter(f byte) {
 	d := v.fetchByte()
 	a := v.fetchByte()
 	b := v.fetchByte()
-	ta := decodeCell(v.regs[a%16])
-	tb := decodeCell(v.regs[b%16])
+	ta := decodeCell(*v.reg(a))
+	tb := decodeCell(*v.reg(b))
 	var out [3]int8
 	for i := 0; i < 3; i++ {
 		if ta[i] == -1 || tb[i] == -1 {
@@ -392,5 +466,5 @@ func (v *VM) execLetter(f byte) {
 			out[i] = 1
 		}
 	}
-	v.regs[d%16] = encodeCell(out)
+	*v.reg(d) = encodeCell(out)
 }

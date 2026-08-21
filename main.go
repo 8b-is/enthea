@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/8b-is/enthea/compress"
+	"github.com/8b-is/enthea/doom"
 	"github.com/8b-is/enthea/internal/mcp"
 	"github.com/8b-is/enthea/internal/personas"
 	"github.com/8b-is/enthea/internal/ui"
@@ -32,7 +33,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.20"
+const version = "0.1.21"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -53,6 +54,7 @@ var registry = map[string]Command{
 	"vakedc":   {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
 	"wire":     {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
 	"compress": {Help: "the marqant seam: quantum-compressed markdown, in pure Go", Run: runCompress},
+	"doom":     {Help: "DOOM inside enthea: a ray-casting maze walker on the VM", Run: runDoom},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -542,6 +544,23 @@ func runCompress(_ context.Context, args []string) error {
 	fmt.Printf("  ratio     %.0f%% smaller%s\n", compress.Ratio(doc, c)*100, map[bool]string{true: " — round-trip byte-identical", false: " — MISMATCH"}[ok])
 	fmt.Println()
 	fmt.Println("  the compressor enthea carries, no Rust in the binary.")
+	return nil
+}
+
+// --- doom ---
+
+// runDoom boots the machine with the game logic written in the enthea
+// language and replays the frames the walker left in the arena.
+func runDoom(_ context.Context, _ []string) error {
+	frames, err := doom.Run()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("enthea doom — a ray-casting maze walker, written in the enthea language\n\n")
+	for _, f := range frames {
+		fmt.Printf("  %s\n", f)
+	}
+	fmt.Printf("\n  %d frames · the game logic ran on the VM, not beside it\n", len(frames))
 	return nil
 }
 

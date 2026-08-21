@@ -115,8 +115,8 @@ func Assemble(lines string) ([]byte, error) {
 				return 0
 			}
 			n, err := strconv.Atoi(strings.TrimPrefix(s, "r"))
-			if err != nil || n < 0 || n > 15 {
-				fail(fmt.Errorf("lang: %s: %q is not r0..r15", m, s))
+			if err != nil || n < 0 || n > 255 {
+				fail(fmt.Errorf("lang: %s: %q is not r0..r255", m, s))
 				return 0
 			}
 			return byte(n)
@@ -157,6 +157,19 @@ func Assemble(lines string) ([]byte, error) {
 			need(2)
 			r, v := reg(), imm()
 			emit(opLdi, r, v)
+		case "ldib": // load byte immediate — raw address bytes, unsigned 0..255
+			if parseErr == nil && len(args) == 2 {
+				r := reg()
+				n, err := strconv.Atoi(args[0])
+				args = args[1:]
+				if err != nil || n < 0 || n > 255 {
+					fail(fmt.Errorf("lang: ldib %q not an address byte 0..255", args))
+				} else {
+					emit(opLdib, r, byte(n))
+				}
+			} else {
+				fail(fmt.Errorf("lang: ldib wants 2 operands"))
+			}
 		case "ld":
 			need(2)
 			r := reg()
@@ -217,6 +230,31 @@ func Assemble(lines string) ([]byte, error) {
 		case "ultra":
 			need(1)
 			emit(opUltra, reg())
+		case "qmat":
+			need(4)
+			d := reg()
+			var err error
+			r := 0
+			c := 0
+			if parseErr == nil && len(args) >= 2 {
+				r, err = strconv.Atoi(args[0])
+				args = args[1:]
+				if err != nil || r < 1 || r > 255 {
+					fail(fmt.Errorf("lang: qmat rows %q not in 1..255", args))
+				}
+				c, err = strconv.Atoi(args[0])
+				args = args[1:]
+				if err != nil || c < 1 || c > 255 {
+					fail(fmt.Errorf("lang: qmat cols %q not in 1..255", args))
+				}
+				label := ""
+				if parseErr == nil && len(args) >= 1 {
+					label, args = args[0], args[1:]
+					emit(opQmat, d, byte(r), byte(c))
+					fixups = append(fixups, fixup{at: len(prog), addr: label})
+					emit(0, 0)
+				}
+			}
 		case "lix":
 			need(2)
 			d, a := reg(), reg()
@@ -233,6 +271,10 @@ func Assemble(lines string) ([]byte, error) {
 			need(3)
 			d, a, b := reg(), reg(), reg()
 			emit(opAadd, d, a, b)
+		case "asub":
+			need(3)
+			d, a, b := reg(), reg(), reg()
+			emit(opAsub, d, a, b)
 		case "cwrite":
 			need(1)
 			emit(opCwrite, reg())

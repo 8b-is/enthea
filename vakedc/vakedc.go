@@ -131,3 +131,28 @@ func AssembleCapability(f pure.F) ([]byte, int, error) {
 	}
 	return prog, cost, nil
 }
+
+// Capability is one thing the language may express: a Boolean function of
+// the alphabet, with its NAND cost and the opcode slot it occupies.
+type Capability struct {
+	Func  pure.F
+	Name  string
+	NANDs int
+	Op    byte
+}
+
+// Capabilities is the capability layer's answer to "what can the language
+// do": the sixteen letters, each with its NAND cost (how hard it is to
+// synthesize) and the opcode slot the VM gives it. The arena and VM consult
+// this; they store and run what the capability graph permits.
+func Capabilities() []Capability {
+	s := Synthesize()
+	names := []string{"zero", "nor", "anb", "nota", "nab", "notb", "xor", "nand",
+		"and", "xnor", "b", "imp", "a", "bimp", "or", "one"}
+	caps := make([]Capability, 0, 16)
+	for f := pure.F(0); f < 16; f++ {
+		_, cost := Emit(f, s)
+		caps = append(caps, Capability{Func: f, Name: names[f], NANDs: cost, Op: byte(f)})
+	}
+	return caps
+}

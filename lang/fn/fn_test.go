@@ -119,10 +119,10 @@ func runEval(t *testing.T, ast map[int]int8) lang.Cell {
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
-	if len(prog) > 1024 {
-		t.Fatalf("evaluator program %d bytes overflows the data region (1024)", len(prog))
+	if len(prog) > 4096 {
+		t.Fatalf("evaluator program %d bytes overflows the data region (4096)", len(prog))
 	}
-	vm, err := lang.NewVMAt(prog, 4096, 1024)
+	vm, err := lang.NewVMAt(prog, 8192, 4096)
 	if err != nil {
 		t.Fatalf("newvm: %v", err)
 	}
@@ -199,4 +199,20 @@ let _ = fill(8) in add(ctxsum(), ctxand())
 		t.Fatalf("window %d, want 8", vm.CtxLen())
 	}
 	t.Log("the living context, purely expressed: slide, gate, vote — all ternary")
+}
+
+// TestMultiParam — functions with several parameters: a two-argument
+// selector and a three-argument adder, called from the main expression.
+// The calling convention is r0..rn: argument i lands in ri, the result in r0.
+func TestMultiParam(t *testing.T) {
+	src := `
+fn sel(a, b, pick) = if(iszero(pick), a, b)
+fn sum3(a, b, c) = add(add(a, b), c)
+let _ = 0 in add(sel(5, 9, 0), sum3(1, 2, 4))
+`
+	got, _ := compileRun(t, src)
+	if got != 12 {
+		t.Fatalf("sel(5,9,0) + sum3(1,2,4) = %d, want 12", got)
+	}
+	t.Log("multi-parameter functions — args in r0..rn, no dummy single-param")
 }

@@ -7,55 +7,39 @@ import (
 	"github.com/8b-is/enthea/lang"
 )
 
-// r0 is the calling convention (argument in, result out); r1 is a permanent
-// zero; r2..r15 are compiler-managed temporaries.
-const zeroReg = 1
-
-// cg lowers pure functional expressions to the register bytecode.
+// r0..rn is the calling convention: argument i in ri, result out in r0.
+// Temps are r(paramCount).., monotonic, never freed.
 type cg struct {
 	out  *strings.Builder
 	env  map[string]byte
-	free []byte // stack of free temporaries, r15 down to r2
+	next byte // the next temporary register — monotonic, never freed
+	// fnRange records each fn's register footprint [start, end), so a call
+	// spills only the callee's clobber range, not the whole register file.
+	fnRange map[string][2]byte
 }
 
-func freshTemps() []byte {
-	// r2..r15, pushed high-first so fresh() pops from the low end.
-	free := make([]byte, 0, 14)
-	for r := byte(15); r >= 2; r-- {
-		free = append(free, r)
-	}
-	return free
-}
-
+// fresh hands out the next temporary register. The register file is
+// dynamically resizable, so there is nothing to reuse: allocation is a
+// monotonic counter, no free-list, no corruption by construction.
 func (c *cg) fresh() byte {
-	if len(c.free) == 0 {
+	if c.next > 255 {
 		panic("fn: out of temporary registers")
 	}
-	r := c.free[len(c.free)-1]
-	c.free = c.free[:len(c.free)-1]
+	r := c.next
+	c.next++
 	return r
 }
 
-func (c *cg) freeTemps(rs ...byte) {
-	for _, r := range rs {
-		if r != zeroReg {
-			c.free = append(c.free, r)
-		}
-	}
-}
+// freeTemps is a no-op — the dynamic register file makes freeing unnecessary.
+// Kept as the callsite is spelled everywhere, doing nothing on purpose.
+func (c *cg) freeTemps(...byte) {}
 
-// allocated returns every temporary currently live (allocated, not free).
-// These are callee-saved across calls.
+// allocated returns every temporary live so far — the monotonic range
+// r2..r(next-1). These are callee-saved across calls.
 func (c *cg) allocated() []byte {
-	free := map[byte]bool{}
-	for _, r := range c.free {
-		free[r] = true
-	}
-	var out []byte
-	for r := byte(2); r <= 15; r++ {
-		if !free[r] {
-			out = append(out, r)
-		}
+	out := make([]byte, 0, int(c.next)-2)
+	for r := byte(2); r < c.next; r++ {
+		out = append(out, r)
 	}
 	return out
 }
@@ -66,20 +50,40 @@ func (c *cg) mov(d, s byte) {
 	fmt.Fprintf(c.out, "mov r%d r%d\n", d, s)
 }
 
+// byteArg compiles an address argument. A literal is loaded as a raw byte
+// (ldib) so addresses may exceed the -13..13 cell range; anything else is a
+// normal expression.
+func (c *cg) byteArg(e Expr, env map[string]byte) byte {
+	if lit, ok := e.(Lit); ok {
+		r := c.fresh()
+		fmt.Fprintf(c.out, "ldib r%d %d\n", r, int(lit))
+		return r
+	}
+	return c.expr(e, false, env)
+}
+
 // Compile lowers a program to enthea bytecode.
 func Compile(fns []*Fn, main Expr) ([]byte, error) {
-	c := &cg{out: &strings.Builder{}, free: freshTemps()}
-	c.out.WriteString("zero r1 r0 r0\n") // r1 = 0, forever
+	c := &cg{out: &strings.Builder{}, next: 2, fnRange: map[string][2]byte{}}
 	c.expr(main, true, map[string]byte{})
 	c.out.WriteString("halt\n")
 	for _, f := range fns {
 		fmt.Fprintf(c.out, "%s:\n", f.Name)
-		param := c.fresh()
-		c.mov(param, 0) // r0 → param
-		env := map[string]byte{f.Param: param}
+		start := c.next
+		// the fn's params occupy the argument slots r0..rn; the body's temps
+		// must start above them, so the moved-in copies never collide
+		if int(c.next) < len(f.Params) {
+			c.next = byte(len(f.Params))
+		}
+		env := map[string]byte{}
+		for i, p := range f.Params {
+			t := c.fresh()
+			c.mov(t, byte(i)) // arg slot i → param temp
+			env[p] = t
+		}
 		c.expr(f.Body, true, env)
 		c.out.WriteString("ret\n")
-		c.freeTemps(param)
+		c.fnRange[f.Name] = [2]byte{start, c.next}
 	}
 	prog, err := lang.Assemble(c.out.String())
 	if err != nil {
@@ -94,12 +98,18 @@ func Compile(fns []*Fn, main Expr) ([]byte, error) {
 func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 	switch x := e.(type) {
 	case Lit:
+		// literals inside the cell range load as cells; addresses (region
+		// bases, arena offsets) beyond ±13 load as raw bytes via ldib
+		op := "ldi"
+		if int(x) < -13 || int(x) > 13 {
+			op = "ldib"
+		}
 		if tail {
-			fmt.Fprintf(c.out, "ldi r0 %d\n", int(x))
+			fmt.Fprintf(c.out, "%s r0 %d\n", op, int(x))
 			return 0
 		}
 		r := c.fresh()
-		fmt.Fprintf(c.out, "ldi r%d %d\n", r, int(x))
+		fmt.Fprintf(c.out, "%s r%d %d\n", op, r, int(x))
 		return r
 
 	case Var:
@@ -117,8 +127,13 @@ func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 
 	case *Let:
 		v := c.expr(x.Val, false, env)
+		if string(x.Name) == "_" {
+			// a dead binding: its temp is freed before the body, so long
+			// `let _ = …` chains never exhaust the register file
+			c.freeTemps(v)
+			return c.expr(x.Body, tail, env)
+		}
 		env[string(x.Name)] = v
-		// shadow-restore is unnecessary: temps are monotonically live here
 		return c.expr(x.Body, tail, env)
 
 	case *If:
@@ -152,18 +167,21 @@ func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 		return c.prim(x, tail, env)
 
 	case *Call:
-		a := c.expr(x.Arg, false, env)
-		c.mov(0, a) // r0 = argument
-		c.freeTemps(a)
+		for i, a := range x.Args {
+			t := c.expr(a, false, env)
+			c.mov(byte(i), t) // arg slot i ← evaluated argument
+			c.freeTemps(t)
+		}
 		if tail {
 			// tail call: the caller's registers are dead; just jump through
 			// the assembler's `call L; ret` → `jmp L` rewrite
 			fmt.Fprintf(c.out, "call %s\n", x.Fn)
 			return 0
 		}
-		// callee-saved registers: spill every live temporary across the call,
-		// so recursive frames never clobber each other
-		live := c.allocated()
+		// callee-saved registers: spill only the callee's clobber range —
+		// each fn's register footprint — so recursive frames never clobber
+		// each other without pushing the whole register file.
+		live := c.calleeSpill(x.Fn)
 		for _, r := range live {
 			fmt.Fprintf(c.out, "push r%d\n", r)
 		}
@@ -178,6 +196,26 @@ func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 	panic("fn: unknown expression")
 }
 
+// calleeSpill returns the caller's live registers the callee will clobber:
+// the callee's footprint range intersected with the caller's live range.
+// Registers outside the callee's range are untouched by it — no spill.
+func (c *cg) calleeSpill(name string) []byte {
+	lo, hi := byte(2), c.next
+	if r, ok := c.fnRange[name]; ok {
+		if r[0] > lo {
+			lo = r[0]
+		}
+		if r[1] < hi {
+			hi = r[1]
+		}
+	}
+	var out []byte
+	for r := lo; r < hi; r++ {
+		out = append(out, r)
+	}
+	return out
+}
+
 func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 	letters := []string{"zero", "nor", "anb", "nota", "nab", "notb", "xor", "nand",
 		"and", "xnor", "b", "imp", "a", "bimp", "or", "one"}
@@ -190,15 +228,15 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 		}
 		return c.expr(p.Args[0], false, env)
 	case "load":
-		a := c.expr(p.Args[0], false, env)
+		addr := c.byteArg(p.Args[0], env)
 		if tail {
-			fmt.Fprintf(c.out, "lix r0 r%d\n", a) // dereference into r0
-			c.freeTemps(a)
+			fmt.Fprintf(c.out, "lix r0 r%d\n", addr) // dereference into r0
+			c.freeTemps(addr)
 			return 0
 		}
 		out := c.fresh()
-		fmt.Fprintf(c.out, "lix r%d r%d\n", out, a)
-		c.freeTemps(a)
+		fmt.Fprintf(c.out, "lix r%d r%d\n", out, addr)
+		c.freeTemps(addr)
 		return out
 	case "ctxwrite":
 		a := c.expr(p.Args[0], false, env)
@@ -208,7 +246,7 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 			return 0
 		}
 		out := c.fresh()
-		c.mov(out, zeroReg)
+		fmt.Fprintf(c.out, "ldi r%d 0\n", out)
 		return out
 	case "ctxand":
 		out := c.fresh()
@@ -237,8 +275,19 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 		fmt.Fprintf(c.out, "aadd r%d r%d r%d\n", out, a, b)
 		c.freeTemps(a, b)
 		return out
-	case "store":
+	case "asub":
 		a := c.expr(p.Args[0], false, env)
+		b := c.expr(p.Args[1], false, env)
+		if tail {
+			c.mov(0, a)
+			return 0
+		}
+		out := c.fresh()
+		fmt.Fprintf(c.out, "asub r%d r%d r%d\n", out, a, b)
+		c.freeTemps(a, b)
+		return out
+	case "store":
+		a := c.byteArg(p.Args[0], env)
 		v := c.expr(p.Args[1], false, env)
 		fmt.Fprintf(c.out, "six r%d r%d\n", a, v)
 		c.freeTemps(a, v)
@@ -246,7 +295,7 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 			return 0
 		}
 		out := c.fresh()
-		c.mov(out, zeroReg)
+		fmt.Fprintf(c.out, "ldi r%d 0\n", out)
 		return out
 	case "ultra":
 		v := c.expr(p.Args[0], false, env)
@@ -303,8 +352,14 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 	for i, l := range letters {
 		if l == name {
 			var a, b byte
+			var lit string
 			if constant[l] {
-				a, b = zeroReg, zeroReg
+				// constants emit directly — a one-instruction ldi is both
+				// value-identical to the letter and free of any zero register
+				lit = fmt.Sprintf("0")
+				if l == "one" {
+					lit = "1"
+				}
 			} else if unary[l] {
 				a = c.expr(p.Args[0], false, env)
 				b = a
@@ -313,7 +368,11 @@ func (c *cg) prim(p *Prim, tail bool, env map[string]byte) byte {
 				b = c.expr(p.Args[1], false, env)
 			}
 			out := c.fresh()
-			fmt.Fprintf(c.out, "%s r%d r%d r%d\n", letters[i], out, a, b)
+			if constant[l] {
+				fmt.Fprintf(c.out, "ldi r%d %s\n", out, lit)
+			} else {
+				fmt.Fprintf(c.out, "%s r%d r%d r%d\n", letters[i], out, a, b)
+			}
 			if unary[l] {
 				c.freeTemps(a)
 			} else {

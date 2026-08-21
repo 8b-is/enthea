@@ -36,13 +36,14 @@ type Prim struct {
 }
 
 type Call struct {
-	Fn  string
-	Arg Expr
+	Fn   string
+	Args []Expr
 }
 
 type Fn struct {
-	Name, Param string
-	Body        Expr
+	Name   string
+	Params []string
+	Body   Expr
 }
 
 func (Lit) isExpr()   {}
@@ -67,11 +68,20 @@ func Parse(src string) ([]*Fn, Expr, error) {
 			p.next()
 			name := p.expectName("function name")
 			p.expect("(")
-			param := p.expectName("parameter")
+			var params []string
+			if p.peek() != ")" {
+				for {
+					params = append(params, p.expectName("parameter"))
+					if p.peek() != "," {
+						break
+					}
+					p.next()
+				}
+			}
 			p.expect(")")
 			p.expect("=")
 			body := p.expr()
-			fns = append(fns, &Fn{Name: name, Param: param, Body: body})
+			fns = append(fns, &Fn{Name: name, Params: params, Body: body})
 			continue
 		}
 		main = p.expr()
@@ -198,10 +208,7 @@ func (p *parser) expr() Expr {
 		if isPrim(name) {
 			return &Prim{Name: name, Args: args}
 		}
-		if len(args) != 1 {
-			panic(fmt.Sprintf("fn: user function %s takes one argument", name))
-		}
-		return &Call{Fn: name, Arg: args[0]}
+		return &Call{Fn: name, Args: args}
 	}
 	return Var(name)
 }
@@ -211,7 +218,7 @@ var primNames = map[string]bool{
 	"notb": true, "xor": true, "nand": true, "and": true, "xnor": true,
 	"b": true, "imp": true, "a": true, "bimp": true, "or": true, "one": true,
 	"add": true, "sub": true, "mul": true, "neg": true, "ultra": true,
-	"iszero": true, "load": true, "store": true, "aadd": true,
+	"iszero": true, "load": true, "store": true, "aadd": true, "asub": true,
 	"ctxwrite": true, "ctxand": true, "ctxsum": true,
 }
 
