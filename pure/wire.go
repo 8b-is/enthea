@@ -17,9 +17,14 @@
 //	         a single trit (ultra). A corrupted frame fails the verdict.
 package pure
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 const wireMagic = "t3:"
+const wireJSONMagic = "t3j:" // ternarySIMDJSON — JSON on the machine's own wire
+const wireYAMLMagic = "t3y:" // qYAML — YAML on the machine's own wire
 
 // checksumModel is the 1-bit LLM every frame carries: a periodic ternary
 // weight vector over the trit alphabet {-1,0,+1} — the same alphabet as the
@@ -110,13 +115,72 @@ func Encode(data []byte) string {
 // Decode parses a ternaryPureASCII frame back to bytes, verifying the
 // 1-bit model's verdict.
 func Decode(s string) ([]byte, error) {
-	if len(s) < len(wireMagic)+2 { // magic + ':' + checksum is the empty frame
+	return decodeFrame(s, wireMagic)
+}
+
+// EncodeJSON is ternarySIMDJSON: a JSON document on the machine's own wire.
+// The frame is t3j:<payload>:<checksum> — same six-trit bytes, same 1-bit
+// model judging the payload.
+func EncodeJSON(v any) (string, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("pure: json: %w", err)
+	}
+	return encodeFrame(data, wireJSONMagic), nil
+}
+
+// DecodeJSON parses a ternarySIMDJSON frame back into a Go value.
+func DecodeJSON(s string, into any) error {
+	data, err := decodeFrame(s, wireJSONMagic)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, into)
+}
+
+// EncodeYAMLText is qYAML: a YAML document on the machine's own wire. The
+// frame is t3y:<payload>:<checksum> — same six-trit bytes, same 1-bit model
+// judging the payload. The codec frames YAML text; parsing the YAML stays
+// with the consumer (the wire never needs to understand the config).
+func EncodeYAMLText(doc string) string {
+	return encodeFrame([]byte(doc), wireYAMLMagic)
+}
+
+// DecodeYAML parses a qYAML frame back to the YAML document text.
+func DecodeYAML(s string) (string, error) {
+	data, err := decodeFrame(s, wireYAMLMagic)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// encodeFrame writes data as balanced trits under a given magic.
+func encodeFrame(data []byte, magic string) string {
+	out := make([]byte, 0, len(data)*6+len(magic)+2)
+	out = append(out, magic...)
+	trits := make([]int8, 0, len(data)*6)
+	for _, b := range data {
+		t := toBalanced(int(b)-128, 6)
+		for _, d := range t {
+			out = append(out, tritToChar(d))
+			trits = append(trits, d)
+		}
+	}
+	out = append(out, ':')
+	out = append(out, tritToChar(int8(verdict(trits))))
+	return string(out)
+}
+
+// decodeFrame parses a frame under a given magic.
+func decodeFrame(s, magic string) ([]byte, error) {
+	if len(s) < len(magic)+2 { // magic + ':' + checksum is the empty frame
 		return nil, fmt.Errorf("pure: frame too short")
 	}
-	if s[:len(wireMagic)] != wireMagic {
-		return nil, fmt.Errorf("pure: not a ternaryPureASCII frame (want %q)", wireMagic)
+	if s[:len(magic)] != magic {
+		return nil, fmt.Errorf("pure: not a %q frame", magic)
 	}
-	body := s[len(wireMagic):]
+	body := s[len(magic):]
 	if len(body) < 2 { // ':' + checksum
 		return nil, fmt.Errorf("pure: frame too short")
 	}

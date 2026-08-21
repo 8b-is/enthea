@@ -27,6 +27,33 @@ Each byte `b` is centred on zero (`v = b - 128`, so -128..127) and written
 as **six balanced trits**, least significant first, canonical (no digit 2
 or -2). Balanced ternary covers -364..364, so any byte fits exactly.
 
+## The universe of training's data plane
+
+One alphabet everywhere — the machine's own trits:
+
+| data | wire |
+|------|------|
+| MD (markdown) | `mq` — marqant token compression (`enthea compress`) |
+| TEXT | `t3:` — ternaryPureASCII (this spec) |
+| JSON | `t3j:` — **ternarySIMDJSON**: JSON marshalled, then the same six-trit
+        bytes + 1-bit model, under a distinct magic so the decoder knows the
+        payload is JSON |
+| YAML | `t3y:` — **qYAML**: a YAML document framed on the same six-trit
+        bytes + 1-bit model, under its own magic. The wire never parses the
+        config; it carries it, judged |
+
+`enthea wire` demonstrates TEXT; `EncodeJSON`/`DecodeJSON` demonstrate JSON.
+The classroom's status reports travel as `t3j` frames — delayed but LIVE,
+self-judged, in the alphabet the pupil is made of.
+
+## qYAML — the config lane
+
+Every configuration the classroom speaks — the council table, the pupil
+settings, the lanes — is YAML, and YAML rides the same wire: `t3y:` frames a
+document byte-identical, judged by the same 1-bit model. `EncodeYAMLText` /
+`DecodeYAML` in Go; `encode_yaml_text` / `decode_yaml` in Python. The wire
+never needs to understand the config; it carries it, self-judged.
+
 ## The frame
 
 ```

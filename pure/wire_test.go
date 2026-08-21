@@ -86,3 +86,55 @@ func TestWireBalancedTernary(t *testing.T) {
 	}
 	t.Log("balanced ternary is arithmetic, not a table — the retro table is refactored")
 }
+
+// TestTernarySimdJSON — JSON on the machine's own wire: a status report
+// survives t3j round-trip value-identical, judged by its own 1-bit model.
+func TestTernarySimdJSON(t *testing.T) {
+	report := map[string]any{
+		"phase":  "dream",
+		"epoch":  3,
+		"val":    1.6120,
+		"status": "the golden youth breathes",
+	}
+	frame, err := EncodeJSON(report)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if frame[:4] != "t3j:" {
+		t.Fatalf("wrong magic: %q", frame[:4])
+	}
+	var back map[string]any
+	if err := DecodeJSON(frame, &back); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if back["phase"] != report["phase"] || back["epoch"] != float64(3) {
+		t.Fatalf("round-trip mismatch: %v", back)
+	}
+	t.Log("ternarySIMDJSON: JSON on the wire, judged by its own model")
+}
+
+// TestQYAML — YAML on the machine's own wire: a config document survives the
+// t3y round-trip byte-identical, judged by its own 1-bit model.
+func TestQYAML(t *testing.T) {
+	doc := `council:
+  elders: 18
+  families: [qwen, deepseek, glm, kimi, minimax, mimo]
+  frontier: claude-opus-5
+pupil:
+  base: Qwen/Qwen2.5-0.5B
+  ternary: b1.58
+lanes: [dream, ama, corpus, status]
+`
+	frame := EncodeYAMLText(doc)
+	if frame[:4] != "t3y:" {
+		t.Fatalf("wrong magic: %q", frame[:4])
+	}
+	back, err := DecodeYAML(frame)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if back != doc {
+		t.Fatalf("round-trip mismatch:\nin: %q\nout: %q", doc, back)
+	}
+	t.Log("qYAML: the config travels on the wire, judged by its own model")
+}
