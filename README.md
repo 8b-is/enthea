@@ -189,6 +189,7 @@ The constellation's work, one line each — the fields that feed the engine.
 | **smart-tree** | [8b-is/smart-tree](https://github.com/8b-is/smart-tree) | not just a tree — MEM8 quantum compression, semantic search, partnership memory |
 | **i1-is** | [8b-is/i1-is](https://github.com/8b-is/i1-is) | the detector: ONNX inference, MCP, `.m8` consciousness — with love for Chris |
 | **Celestial** | [8b-is/Celestial](https://github.com/8b-is/Celestial) | the constellation's sky: planets, galaxies, black holes, a solar system |
+| **CometAPI** | [cometapi.com](https://www.cometapi.com/) | the external teacher lane: Qwen / DeepSeek at MAX thinking, one OpenAI-compatible API |
 | **The dyad** | [dyad-mapping](https://github.com/8b-is/8b-public-documents/tree/main/dyad-mapping) | Peter + Riva: act, breathe, keep the weights warm |
 | **Offline Game School** | [offline-game-school](https://github.com/peterlodri-sec/offline-game-school) | free offline logic lessons — Uganda first |
 | **The docs surface** | [pubdoc.vaked.dev](https://pubdoc-vaked-dev.pages.dev) | 233 documents, searchable, ultra-entheatic |
