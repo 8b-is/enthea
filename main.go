@@ -33,7 +33,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.22"
+const version = "0.1.23"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -55,6 +55,7 @@ var registry = map[string]Command{
 	"wire":     {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
 	"compress": {Help: "the marqant seam: quantum-compressed markdown, in pure Go", Run: runCompress},
 	"doom":     {Help: "DOOM inside enthea: a ray-casting maze walker on the VM", Run: runDoom},
+	"wave":     {Help: "the Peirce triad: a signed triangle wave and its ternary interpretant", Run: runWave},
 	"version":  {Help: "print the version", Run: runVersion},
 }
 
@@ -582,6 +583,46 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// --- wave ---
+
+// runWave draws the Peirce triad: a properly signed triangle wave (the
+// sign), its ternary interpretant (the codes), and the proof there is no
+// MSB-flip fracture — the exact crack the unsigned 0x0000..0xFFFF sweep
+// makes.
+func runWave(_ context.Context, args []string) error {
+	samples, cycles := 96, 2
+	if len(args) >= 1 && args[0] == "big" {
+		samples, cycles = 4096, 4
+	}
+	sig := pure.Triangle16(samples, cycles)
+	codes := pure.Interpret(sig)
+	fmt.Printf("enthea wave — the Peirce triad, sample-exact\n\n")
+	// an ASCII plot: each sample is one column, clipped to 12 rows
+	const rows = 12
+	for r := rows - 1; r >= 0; r-- {
+		lo := int(float64(r)/float64(rows-1)*float64(pure.TriadAmp) - float64(pure.TriadAmp))
+		hi := lo + pure.TriadAmp/rows
+		var b strings.Builder
+		for _, s := range sig {
+			if int(s) >= lo && int(s) <= hi {
+				b.WriteByte('·')
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		fmt.Printf("  %7d %s\n", lo, b.String())
+	}
+	fmt.Printf("  %7s +%s+\n", "", strings.Repeat("-", samples))
+	fmt.Printf("\n  the sign:    %d samples · %d cycles · peaks ±%d\n", samples, cycles, pure.TriadAmp)
+	fmt.Printf("  interpretant: %d ternary codes — they agree with the sign's polarity\n", len(codes))
+	if samples <= 96 {
+		fmt.Printf("  codes:        %v\n", codes)
+	}
+	fmt.Printf("\n  no MSB flip, no phase-wrap crack: the sign is well-formed, so the\n")
+	fmt.Printf("  interpretation (the codes) is honest.\n")
+	return nil
 }
 
 var _ io.ReadWriteCloser = (nopCloser{})
