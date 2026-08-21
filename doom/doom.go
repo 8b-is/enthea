@@ -59,6 +59,27 @@ func stripComments(src string) string {
 	return strings.Join(out, "\n")
 }
 
+// Render draws the maze with the player at `pos` facing `dir` (0=N 1=E 2=S
+// 3=W). The grid is `grid` characters ('0' floor, '1' wall), rowStride wide.
+func Render(grid string, pos, dir int) string {
+	marker := "NESW"[dir]
+	var b strings.Builder
+	for i, c := range grid {
+		if i > 0 && i%rowStride == 0 {
+			b.WriteByte('\n')
+		}
+		switch {
+		case i == pos:
+			b.WriteByte(marker)
+		case c == '1':
+			b.WriteString("█")
+		default:
+			b.WriteString("·")
+		}
+	}
+	return b.String()
+}
+
 // Run assembles the world, boots the machine, and returns the replay frames.
 func Run() ([]string, error) {
 	// the world: a 12x12 maze, interior 2..9, bordered by walls
@@ -130,4 +151,58 @@ func Run() ([]string, error) {
 		frames = append(frames, fmt.Sprintf("[%c] (row %d, col %d)", dir, y, x))
 	}
 	return frames, nil
+}
+
+// Step is one played frame: the world grid with the player drawn at pos
+// facing dir, plus the plain text line.
+type Step struct {
+	Text string
+	Grid string
+}
+
+// Play renders every frame as a picture of the maze — the player visibly
+// walking the patrol the enthea program chose.
+func Play() ([]Step, error) {
+	frames, err := Run()
+	if err != nil {
+		return nil, err
+	}
+	const W = "111111111111" +
+		"100000000001" +
+		"101111010001" +
+		"101000010101" +
+		"101011010101" +
+		"100001000001" +
+		"111010111101" +
+		"100010000001" +
+		"101011101101" +
+		"100000000001" +
+		"100111111001" +
+		"111111111111"
+	var steps []Step
+	for _, f := range frames {
+		var pos, face int
+		if _, err := fmt.Sscanf(f, "[%c] (row %d, col %d)", new(byte), &face, &pos); err != nil {
+			pos = 0
+		}
+		// Sscanf: format is [dir] (row y, col x); face = the dir index we
+		// re-derive from the char, pos is a row-major offset = y*12 + x
+		if len(f) > 1 {
+			switch f[1] {
+			case 'N':
+				face = 0
+			case 'E':
+				face = 1
+			case 'S':
+				face = 2
+			case 'W':
+				face = 3
+			}
+			var y, x int
+			fmt.Sscanf(f[7:], "%d, col %d)", &y, &x)
+			pos = y*rowStride + x
+		}
+		steps = append(steps, Step{Text: f, Grid: Render(W, pos, face)})
+	}
+	return steps, nil
 }

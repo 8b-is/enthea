@@ -33,7 +33,7 @@ import (
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.21"
+const version = "0.1.22"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -64,6 +64,14 @@ func main() {
 		usage()
 		return
 	}
+	// the DOOM flag: `enthea --doom` boots straight into the maze
+	if os.Args[1] == "--doom" {
+		if err := runDoom(ctx, os.Args[2:]); err != nil {
+			ui.Err(err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	cmd, ok := registry[os.Args[1]]
 	if !ok {
 		ui.Err("unknown command: " + os.Args[1])
@@ -80,6 +88,7 @@ func main() {
 func usage() {
 	ui.Header("enthea — the deepsiper-enthea engine entry")
 	ui.Bullet("brew install 8b-is/tap/deepsipser-enthea")
+	ui.Bullet("enthea --doom   boots straight into the maze walker")
 	fmt.Println()
 	names := make([]string, 0, len(registry))
 	for n := range registry {
@@ -552,15 +561,18 @@ func runCompress(_ context.Context, args []string) error {
 // runDoom boots the machine with the game logic written in the enthea
 // language and replays the frames the walker left in the arena.
 func runDoom(_ context.Context, _ []string) error {
-	frames, err := doom.Run()
+	steps, err := doom.Play()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("enthea doom — a ray-casting maze walker, written in the enthea language\n\n")
-	for _, f := range frames {
-		fmt.Printf("  %s\n", f)
+	for i, s := range steps {
+		fmt.Printf("frame %2d  %s\n%s\n", i, s.Text, s.Grid)
+		if i < len(steps)-1 {
+			fmt.Println()
+		}
 	}
-	fmt.Printf("\n  %d frames · the game logic ran on the VM, not beside it\n", len(frames))
+	fmt.Printf("\n  %d frames · the game logic ran on the VM, not beside it\n", len(steps))
 	return nil
 }
 
