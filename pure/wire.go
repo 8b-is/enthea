@@ -26,10 +26,13 @@ const wireMagic = "t3:"
 const wireJSONMagic = "t3j:" // ternarySIMDJSON — JSON on the machine's own wire
 const wireYAMLMagic = "t3y:" // qYAML — YAML on the machine's own wire
 
+// checksumModelWidth is the 1-bit LLM's period — its weight vector length.
+const checksumModelWidth = 10
+
 // checksumModel is the 1-bit LLM every frame carries: a periodic ternary
 // weight vector over the trit alphabet {-1,0,+1} — the same alphabet as the
-// machine's own weights.
-var checksumModel = [10]int8{1, -1, 1, 0, -1, 1, -1, 0, 1, -1}
+// bytes it guards.
+var checksumModel = [checksumModelWidth]int8{1, -1, 1, 0, -1, 1, -1, 0, 1, -1}
 
 // tritChar is the pure-ASCII alphabet of the wire.
 var tritChar = [3]byte{'-', '0', '+'}

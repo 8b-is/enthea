@@ -22,7 +22,26 @@ var doomFn string
 const (
 	rowStride = 12
 	interior  = 2 // interior cells 2..9; the border rows/cols are walls
+
+	// worldSize is the low arena region holding map/player/script/frames.
+	worldSize = 200
+	// frameBase is where the replay frames start in the low region.
+	frameBase = 140
+	// arenaSize / progBase: the program rides high, the world rides low.
+	arenaSize = 16384
+	progBase  = 200
+
+	// Player and script layout in the low arena region.
+	playerPosOffset    = 64
+	playerFaceOffset   = 65
+	playerCursorOffset = 66
+	scriptOffset       = 70
+
+	// Execution and replay bounds.
+	maxDoomVMSteps  = 1_000_000
+	maxReplayFrames = 100
 )
+
 
 // offset tables: per facing (0=N 1=E 2=S 3=W) and distance 1..3, the arena
 // offset of the cell ahead (or to the left/right for the side columns).
@@ -104,15 +123,15 @@ func Run() ([]string, error) {
 	script := []int8{0, 0, 2, 0, 0, 2, 0, 0, 2, 0, 0, -1} // -1 = 255 as a byte
 
 	// the arena data plane (program rides high, world rides low)
-	data := make([]byte, 200)
+	data := make([]byte, worldSize)
 	for i, c := range W {
 		data[i] = byte(1 - (c - '0')) // '1' wall -> 1, '0' floor -> 0
 	}
-	data[64] = 5*rowStride + 5 // player starts at (5,5), facing N
-	data[65] = 0               // facing N
-	data[66] = 0               // cursor
+	data[playerPosOffset] = 5*rowStride + 5 // player starts at (5,5), facing N
+	data[playerFaceOffset] = 0              // facing N
+	data[playerCursorOffset] = 0            // cursor
 	for i, s := range script {
-		data[70+i] = byte(s)
+		data[scriptOffset+i] = byte(s)
 	}
 
 	fns, main, err := fn.Parse(stripComments(doomFn))
@@ -123,23 +142,23 @@ func Run() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("doom compile: %w", err)
 	}
-	vm, err := lang.NewVMAt(prog, 16384, 200)
+	vm, err := lang.NewVMAt(prog, arenaSize, progBase)
 	if err != nil {
 		return nil, err
 	}
 	defer vm.Arena().Close()
-	copy(vm.Arena().View()[:200], data)
+	copy(vm.Arena().View()[:worldSize], data)
 
-	if err := vm.Run(1000000); err != nil {
+	if err := vm.Run(maxDoomVMSteps); err != nil {
 		return nil, fmt.Errorf("doom run: %w", err)
 	}
 
 	// replay the frames: pos, face per step (a 2-cell frame)
 	view := vm.Arena().View()
 	var frames []string
-	for i := 0; i < 100; i++ {
-		f := 140 + i*2
-		if f+2 > 200 {
+	for i := 0; i < maxReplayFrames; i++ {
+		f := frameBase + i*2
+		if f+2 > worldSize {
 			break
 		}
 		pos, face := view[f], view[f+1]
@@ -151,6 +170,7 @@ func Run() ([]string, error) {
 		frames = append(frames, fmt.Sprintf("[%c] (row %d, col %d)", dir, y, x))
 	}
 	return frames, nil
+
 }
 
 // Step is one played frame: the world grid with the player drawn at pos

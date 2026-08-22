@@ -9,17 +9,26 @@ type Cell = int16
 
 // Balanced-ternary trit encoding: each trit t ∈ {-1,0,+1}; a cell is three
 // trits (t2·9 + t1·3 + t0). -1 is the unknown, propagated by the letters.
-func decodeCell(c Cell) [3]int8 { return [3]int8{int8(c % 3), int8((c / 3) % 3), int8((c / 9) % 3)} }
+func decodeCell(c Cell) [3]int8 {
+	return [3]int8{
+		int8(c % TritRadix),
+		int8((c / TritWeight1) % TritRadix),
+		int8((c / TritWeight2) % TritRadix),
+	}
+}
 
-func encodeCell(t [3]int8) Cell { return Cell(t[0] + 3*t[1] + 9*t[2]) }
+func encodeCell(t [3]int8) Cell {
+	return Cell(t[0]*TritWeight0 + t[1]*TritWeight1 + t[2]*TritWeight2)
+}
+
 
 // clamp keeps a balanced-ternary result inside the 3-trit cell.
 func clamp(v int) Cell {
-	if v > 13 {
-		return 13
+	if v > CellMax {
+		return CellMax
 	}
-	if v < -13 {
-		return -13
+	if v < CellMin {
+		return CellMin
 	}
 	return Cell(v)
 }
@@ -114,13 +123,12 @@ func NewVMAt(prog []byte, arenaSize, progBase int) (*VM, error) {
 		return nil, fmt.Errorf("lang: program %d bytes exceeds arena %d at base %d", len(prog), arenaSize, progBase)
 	}
 	copy(a.data[progBase:], prog)
-	ctxLen := 8
-	ctxBase := progBase + len(prog) + 16
-	if ctxBase+ctxLen >= arenaSize-64 {
+	ctxBase := progBase + len(prog) + ctxGap
+	if ctxBase+ctxLen >= arenaSize-ctxReserve {
 		a.Close()
 		return nil, fmt.Errorf("lang: no room for the context window (program too large)")
 	}
-	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], regs: make(Registers, 16), heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1, ctxBase: ctxBase, ctxLen: ctxLen}
+	vm := &VM{arena: a, prog: a.data[progBase : progBase+len(prog)], regs: make(Registers, InitialRegisters), heapOff: progBase + len(prog), sp: arenaSize - 1, stackLo: arenaSize - 1, ctxBase: ctxBase, ctxLen: ctxLen}
 	return vm, nil
 }
 
@@ -154,7 +162,7 @@ func (v *VM) StackPeak() int { return len(v.arena.data) - 1 - v.stackLo }
 
 type opFn func(v *VM)
 
-var ops [256]opFn
+var ops [opsTableSize]opFn
 
 func (v *VM) step() {
 	v.steps++
@@ -187,7 +195,7 @@ func (v *VM) fetchAddr() int {
 
 func init() {
 	// the sixteen letters, each its own table slot
-	for f := 0; f < 16; f++ {
+	for f := 0; f < LetterCount; f++ {
 		idx := byte(f)
 		ops[idx] = func(v *VM) { v.execLetter(idx) }
 	}
@@ -296,8 +304,8 @@ func init() {
 		d := v.fetchByte()
 		w := v.fetchAddr()
 		n := int(v.fetchByte())
-		if n < 1 || n > 16 {
-			v.err = fmt.Errorf("lang: qdot count %d out of 1..16", n)
+		if n < 1 || n > maxQdotCount {
+			v.err = fmt.Errorf("lang: qdot count %d out of 1..%d", n, maxQdotCount)
 			return
 		}
 		if w < 0 || w+n > len(v.arena.data) {
@@ -375,7 +383,7 @@ func init() {
 		rows := int(v.fetchByte())
 		cols := int(v.fetchByte())
 		w := v.fetchAddr()
-		if rows < 1 || cols < 1 || rows*cols > 255 {
+		if rows < 1 || cols < 1 || rows*cols > maxMatrixDim {
 			v.err = fmt.Errorf("lang: qmat shape %dx%d out of range", rows, cols)
 			return
 		}
@@ -406,7 +414,7 @@ func init() {
 	}
 	ops[opCand] = func(v *VM) {
 		r := v.fetchByte()
-		acc := Cell(13) // trits [1,1,1]: the identity of tritwise AND
+		acc := Cell(CellMax) // trits [1,1,1]: the identity of tritwise AND
 		for i := 0; i < v.ctxLen; i++ {
 			acc = tritAnd(acc, Cell(int8(v.arena.data[v.ctxBase+i])))
 		}

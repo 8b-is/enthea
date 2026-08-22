@@ -7,6 +7,11 @@ package pure
 
 import "math"
 
+// quantFloor keeps a zero-weight group from dividing by zero: the scale of
+// an all-zero group cannot be mean(|w|) = 0, so it floors to this epsilon —
+// the kernel's smallest defensible step.
+const quantFloor = 1e-7
+
 // Ternary4 is the Go oracle for the pure kernels: the BitNet b1.58 group
 // quantize on four weights.
 //
@@ -18,8 +23,8 @@ func Ternary4(w [4]float64) (codes [4]int64, scale float64) {
 		sum += math.Abs(x)
 	}
 	scale = sum / 4
-	if scale < 1e-7 {
-		scale = 1e-7
+	if scale < quantFloor {
+		scale = quantFloor
 	}
 	for i, x := range w {
 		v := x / scale

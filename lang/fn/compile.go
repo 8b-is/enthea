@@ -22,7 +22,7 @@ type cg struct {
 // dynamically resizable, so there is nothing to reuse: allocation is a
 // monotonic counter, no free-list, no corruption by construction.
 func (c *cg) fresh() byte {
-	if c.next > 255 {
+	if c.next > lang.MaxRegister {
 		panic("fn: out of temporary registers")
 	}
 	r := c.next
@@ -101,7 +101,7 @@ func (c *cg) expr(e Expr, tail bool, env map[string]byte) byte {
 		// literals inside the cell range load as cells; addresses (region
 		// bases, arena offsets) beyond ±13 load as raw bytes via ldib
 		op := "ldi"
-		if int(x) < -13 || int(x) > 13 {
+		if int(x) < lang.CellMin || int(x) > lang.CellMax {
 			op = "ldib"
 		}
 		if tail {

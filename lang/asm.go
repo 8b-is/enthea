@@ -115,7 +115,7 @@ func Assemble(lines string) ([]byte, error) {
 				return 0
 			}
 			n, err := strconv.Atoi(strings.TrimPrefix(s, "r"))
-			if err != nil || n < 0 || n > 255 {
+			if err != nil || n < 0 || n > MaxAddrByte {
 				fail(fmt.Errorf("lang: %s: %q is not r0..r255", m, s))
 				return 0
 			}
@@ -128,8 +128,8 @@ func Assemble(lines string) ([]byte, error) {
 			s := args[0]
 			args = args[1:]
 			n, err := strconv.Atoi(s)
-			if err != nil || n < -13 || n > 13 {
-				fail(fmt.Errorf("lang: %s: %q is not a cell in -13..13", m, s))
+			if err != nil || n < CellMin || n > CellMax {
+				fail(fmt.Errorf("lang: %s: %q is not a cell in %d..%d", m, s, CellMin, CellMax))
 				return 0
 			}
 			return byte(int8(n))
@@ -162,8 +162,8 @@ func Assemble(lines string) ([]byte, error) {
 				r := reg()
 				n, err := strconv.Atoi(args[0])
 				args = args[1:]
-				if err != nil || n < 0 || n > 255 {
-					fail(fmt.Errorf("lang: ldib %q not an address byte 0..255", args))
+				if err != nil || n < 0 || n > MaxAddrByte {
+					fail(fmt.Errorf("lang: ldib %q not an address byte 0..%d", args, MaxAddrByte))
 				} else {
 					emit(opLdib, r, byte(n))
 				}
@@ -219,8 +219,8 @@ func Assemble(lines string) ([]byte, error) {
 				label, args = args[0], args[1:]
 				n, err := strconv.Atoi(args[0])
 				args = args[1:]
-				if err != nil || n < 1 || n > 16 {
-					fail(fmt.Errorf("lang: qdot count %q not in 1..16", args))
+				if err != nil || n < 1 || n > maxQdotCount {
+					fail(fmt.Errorf("lang: qdot count %q not in 1..%d", args, maxQdotCount))
 				} else {
 					emit(opQdot, d)
 					fixups = append(fixups, fixup{at: len(prog), addr: label})
@@ -239,12 +239,12 @@ func Assemble(lines string) ([]byte, error) {
 			if parseErr == nil && len(args) >= 2 {
 				r, err = strconv.Atoi(args[0])
 				args = args[1:]
-				if err != nil || r < 1 || r > 255 {
+				if err != nil || r < 1 || r > maxMatrixDim {
 					fail(fmt.Errorf("lang: qmat rows %q not in 1..255", args))
 				}
 				c, err = strconv.Atoi(args[0])
 				args = args[1:]
-				if err != nil || c < 1 || c > 255 {
+				if err != nil || c < 1 || c > maxMatrixDim {
 					fail(fmt.Errorf("lang: qmat cols %q not in 1..255", args))
 				}
 				label := ""
