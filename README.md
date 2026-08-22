@@ -224,3 +224,5 @@ and the kompress brain: RALPH, LODRI, KRENGEL, PETER, COSMOS. Talk with any
 of them from your client after `enthea setup`.
 
 *· vaked.dev ·*
+
+**IN OUR TEAM** — [8b-is](https://github.com/8b-is) · p === **visionary officer** · [sponsor](https://github.com/sponsors/peterlodri-sec)
