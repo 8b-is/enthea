@@ -225,4 +225,4 @@ of them from your client after `enthea setup`.
 
 *· vaked.dev ·*
 
-**IN OUR TEAM** — [8b-is](https://github.com/8b-is) · p === **visionary officer** · [sponsor](https://github.com/sponsors/peterlodri-sec)
+**IN OUR TEAM** — [8b-is](https://github.com/8b-is) · p === **visionary officer** · [sponsor peterlodri-sec](https://github.com/sponsors/peterlodri-sec) · [sponsor 8b-is](https://github.com/sponsors/8b-is)
