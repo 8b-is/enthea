@@ -25,6 +25,17 @@
 
 </details>
 
+## v108 — the unified kernel (kernel8 · ayeOS · cordis · mem8)
+
+The v108 edition fuses the constellation's four kernels into ONE: the
+dispatch brain (kernel8, from the message-plane doctrine), the fleet's
+operating shell (ayeOS), the harness's plugin heart (cordis), and the
+memory cell (mem8, the reservoir the lane rows on). One dispatcher, one
+shell, one heart, one reservoir — and the back door stays the front
+door: show me the mechanism.
+
+---
+
 # enthea — the deepsiper-enthea engine door
 
 > **DEDICATED TO ALL — ESPECIALLY FOR MY-P <FAMILY>.**
