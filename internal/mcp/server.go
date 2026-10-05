@@ -55,10 +55,10 @@ func (s *Server) Tools() []Tool {
 // --- JSON-RPC wire types ---
 
 type request struct {
-	JSONRPC string         `json:"jsonrpc"`
-	ID      any            `json:"id"`
-	Method  string         `json:"method"`
-	Params  map[string]any `json:"params,omitempty"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Method  string          `json:"method"`
+	Params  map[string]any  `json:"params,omitempty"`
 }
 
 type response struct {
@@ -80,7 +80,7 @@ const (
 )
 
 // Serve reads line-delimited JSON-RPC requests from rw until EOF and writes
-// responses back. It returns the first I/O error encountered after draining.
+// responses back. It returns the first I/O error encountered.
 func (s *Server) Serve(ctx context.Context, rw io.ReadWriteCloser) error {
 	defer rw.Close()
 	sc := bufio.NewScanner(rw)
@@ -94,10 +94,18 @@ func (s *Server) Serve(ctx context.Context, rw io.ReadWriteCloser) error {
 		var req request
 		if err := json.Unmarshal(line, &req); err != nil {
 			// Notification-shaped malformed input: still respond with parse error.
-			_ = enc.Encode(response{JSONRPC: "2.0", Error: &rpcErr{Code: codeParse, Message: "parse error"}})
+			if err := enc.Encode(response{JSONRPC: "2.0", Error: &rpcErr{Code: codeParse, Message: "parse error"}}); err != nil {
+				return fmt.Errorf("mcp: write: %w", err)
+			}
 			continue
 		}
-		_ = enc.Encode(s.handle(ctx, req))
+		resp := s.handle(ctx, req)
+		if req.ID == nil {
+			continue
+		} // Notifications have no request ID.
+		if err := enc.Encode(resp); err != nil {
+			return fmt.Errorf("mcp: write: %w", err)
+		}
 	}
 	if err := sc.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("mcp: read: %w", err)
@@ -115,9 +123,6 @@ func (s *Server) handle(ctx context.Context, req request) response {
 			"capabilities":    map[string]any{"tools": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "enthea", "version": "0.1.0"},
 		}
-	case "notifications/initialized":
-		// no reply for notifications
-		return response{}
 	case "tools/list":
 		resp.Result = map[string]any{"tools": s.toolList()}
 	case "tools/call":

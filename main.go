@@ -82,6 +82,10 @@ func main() {
 		os.Exit(2)
 	}
 	if err := cmd.Run(ctx, os.Args[2:]); err != nil {
+		if os.Args[1] == "mcp" {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		ui.Err(err.Error())
 		ui.Sig()
 		os.Exit(1)
@@ -116,8 +120,8 @@ func runMCP(_ context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	ui.Header("enthea mcp — serving over stdio")
-	ui.Bullet("tools: personas_list · kompress_compress · kompress_persons")
+	fmt.Fprintln(os.Stderr, "enthea mcp — serving over stdio")
+	fmt.Fprintln(os.Stderr, "tools: personas_list · kompress_compress · kompress_persons")
 	return server.Serve(context.Background(), nopCloser{os.Stdin, os.Stdout})
 }
 
