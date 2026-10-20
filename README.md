@@ -63,6 +63,7 @@ After install, one command connects it to your client:
 enthea setup opencode        # writes the MCP server + personas into opencode
 enthea personas              # meet the voices
 enthea doctor                # parallel probe of the engine + surfaces
+enthea viz                   # serve embedded ENTHEA WebGL2 synthesizer + /events SSE
 ```
 
 ---

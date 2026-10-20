@@ -13,13 +13,17 @@ package main
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/8b-is/enthea/compress"
@@ -28,13 +32,17 @@ import (
 	"github.com/8b-is/enthea/internal/mcp"
 	"github.com/8b-is/enthea/internal/personas"
 	"github.com/8b-is/enthea/internal/ui"
+	"github.com/8b-is/enthea/internal/viz"
 	"github.com/8b-is/enthea/lang"
 	"github.com/8b-is/enthea/lang/fn"
 	"github.com/8b-is/enthea/pure"
 	"github.com/8b-is/enthea/vakedc"
 )
 
-const version = "0.1.23"
+//go:embed index.html
+var embeddedSynthesizerHTML []byte
+
+const version = "0.1.24"
 
 // Command is a subcommand: a name, a one-line help, and a Run.
 type Command struct {
@@ -44,21 +52,22 @@ type Command struct {
 
 // registry is the subcommand table — the idiomatic "commands as data" shape.
 var registry = map[string]Command{
-	"mcp":      {Help: "serve the engine MCP servers over stdio", Run: runMCP},
-	"personas": {Help: "list or install the constellation voices", Run: runPersonas},
-	"setup":    {Help: "wire MCP + personas into a client (opencode, charm, …)", Run: runSetup},
-	"doctor":   {Help: "check the engine and constellation surfaces", Run: runDoctor},
-	"lang":     {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
+	"mcp":       {Help: "serve the engine MCP servers over stdio", Run: runMCP},
+	"personas":  {Help: "list or install the constellation voices", Run: runPersonas},
+	"setup":     {Help: "wire MCP + personas into a client (opencode, charm, …)", Run: runSetup},
+	"doctor":    {Help: "check the engine and constellation surfaces", Run: runDoctor},
+	"lang":      {Help: "boot the enthea machine: run a program on its own arena", Run: runLang},
 	"languages": {Help: "eight tongues on the wire — the constellation's language lane", Run: runLanguages},
-	"fn":       {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
-	"bus":      {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
-	"quantctx": {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
-	"vakedc":   {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
-	"wire":     {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
-	"compress": {Help: "the marqant seam: quantum-compressed markdown, in pure Go", Run: runCompress},
-	"doom":     {Help: "DOOM inside enthea: a ray-casting maze walker on the VM", Run: runDoom},
-	"wave":     {Help: "the Peirce triad: a signed triangle wave and its ternary interpretant", Run: runWave},
-	"version":  {Help: "print the version", Run: runVersion},
+	"fn":        {Help: "compile + run a pure enthea expression (the seed's language)", Run: runFn},
+	"bus":       {Help: "run a Go channel of 1-bit models (weights in, results out)", Run: runBus},
+	"quantctx":  {Help: "the living context: sliding window of quantized tokens", Run: runQuantCtx},
+	"vakedc":    {Help: "the capability-graph assembler: NAND-only synthesis of the sixteen", Run: runVakedc},
+	"wire":      {Help: "ternaryPureASCII: encode/decode language artifacts on the wire", Run: runWire},
+	"compress":  {Help: "the marqant seam: quantum-compressed markdown, in pure Go", Run: runCompress},
+	"doom":      {Help: "DOOM inside enthea: a ray-casting maze walker on the VM", Run: runDoom},
+	"wave":      {Help: "the Peirce triad: a signed triangle wave and its ternary interpretant", Run: runWave},
+	"viz":       {Help: "close the loop of the seed: serve the embedded ENTHEA WebGL2 synthesizer + SSE", Run: runViz},
+	"version":   {Help: "print the version", Run: runVersion},
 }
 
 func main() {
@@ -677,6 +686,80 @@ func runWave(_ context.Context, args []string) error {
 	fmt.Printf("\n  no MSB flip, no phase-wrap crack: the sign is well-formed, so the\n")
 	fmt.Printf("  interpretation (the codes) is honest.\n")
 	return nil
+}
+
+// --- viz ---
+
+// runViz closes the loop of the seed (8b-is/enthea#1): serves the embedded
+// single-file ENTHEA WebGL2 synthesizer from the binary alongside /state and
+// /events SSE, or prints the deterministic VisualState JSON when --once is set.
+func runViz(ctx context.Context, args []string) error {
+	addr := "127.0.0.1:8787"
+	ev := viz.EngineEvent{Persona: "aye", PromptLength: 108, Quant: 2}
+	once := false
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--addr":
+			if i+1 < len(args) {
+				addr = args[i+1]
+				i++
+			}
+		case "--persona":
+			if i+1 < len(args) {
+				ev.Persona = args[i+1]
+				i++
+			}
+		case "--prompt-length":
+			if i+1 < len(args) {
+				if n, err := strconv.Atoi(args[i+1]); err == nil {
+					ev.PromptLength = n
+				}
+				i++
+			}
+		case "--quant":
+			if i+1 < len(args) {
+				if q, err := strconv.Atoi(args[i+1]); err == nil {
+					ev.Quant = q
+				}
+				i++
+			}
+		case "--once":
+			once = true
+		}
+	}
+
+	state := viz.MapEvent(ev)
+	if once {
+		b, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+		return nil
+	}
+
+	ui.Header("enthea viz — closing the loop of the seed (enthea × ENTHEA)")
+	ui.Table([][2]string{
+		{"surface", "http://" + addr + "/"},
+		{"sse", "http://" + addr + "/events"},
+		{"state", "http://" + addr + "/state"},
+		{"embedded", fmt.Sprintf("%d bytes (index.html)", len(embeddedSynthesizerHTML))},
+		{"persona -> hue", fmt.Sprintf("%s -> %.1f°", state.Event.Persona, state.Hue)},
+		{"quant -> intensity", fmt.Sprintf("%d-bit -> %.4f", state.Event.Quant, state.Intensity)},
+		{"prompt -> complexity", fmt.Sprintf("%d chars -> %.4f", state.Event.PromptLength, state.Complexity)},
+	})
+	ui.Sig()
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: viz.Handler(embeddedSynthesizerHTML, ev),
+	}
+	go func() {
+		<-ctx.Done()
+		_ = srv.Close()
+	}()
+	return srv.ListenAndServe()
 }
 
 var _ io.ReadWriteCloser = (nopCloser{})

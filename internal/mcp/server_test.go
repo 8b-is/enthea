@@ -23,6 +23,7 @@ func (s *testStream) Write(p []byte) (int, error) {
 	return s.Buffer.Write(p)
 }
 func (s *testStream) Close() error { return nil }
+
 func TestNotificationsAreSilent(t *testing.T) {
 	server, _ := New()
 	stream := &testStream{Reader: strings.NewReader("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n")}
@@ -33,6 +34,7 @@ func TestNotificationsAreSilent(t *testing.T) {
 		t.Fatalf("unexpected responses: %s", stream.Buffer.String())
 	}
 }
+
 func TestWriteFailuresPropagate(t *testing.T) {
 	for _, input := range []string{"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n", "invalid\n"} {
 		server, _ := New()
