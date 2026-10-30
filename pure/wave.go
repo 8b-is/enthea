@@ -17,11 +17,11 @@ package pure
 const TriadAmp = 32767
 
 // Triangle16 yields `samples` signed int16 samples of a triangle wave with
-// `cycles` full periods. The phase is a float in [0,1); each sample is
+// `cycles` full periods. The phase is a rational in [0,1); each sample is
 //
-//	p < 0.25  ->  +4p        (rise to the +peak)
-//	p < 0.75  ->  2 - 4p     (fall through zero to the -peak)
-//	else      ->  4p - 4     (rise back to zero)
+//	phase < 1/4  ->  +4*phase        (rise to the +peak)
+//	phase < 3/4  ->  2 - 4*phase     (fall through zero to the -peak)
+//	else         ->  4*phase - 4     (rise back to zero)
 //
 // A piecewise-linear ramp has no instantaneous jumps: every adjacent-sample
 // delta is bounded by the per-sample slope, so there is no MSB flip, no
@@ -32,18 +32,35 @@ func Triangle16(samples, cycles int) []int16 {
 		return out
 	}
 	for i := 0; i < samples; i++ {
-		p := float64(cycles) * float64(i) / float64(samples)
-		p = p - float64(int(p)) // phase in [0, 1)
-		var v float64
-		switch {
-		case p < 0.25:
-			v = 4 * p
-		case p < 0.75:
-			v = 2 - 4*p
-		default:
-			v = 4*p - 4
+		// phase = (cycles * i) % samples / samples
+		// We use integer arithmetic to calculate the numerator of the fractional part.
+		// num = (cycles * i) % samples
+		// v = 4 * (num/samples) or similar. To avoid floats, we scale by TriadAmp.
+		// Let's use a scale of 1,000,000 for the phase calculation to maintain precision,
+		// or better, use the exact rational logic.
+		num := (cycles * i) % samples
+		// To avoid float, we calculate the value in a scaled integer space.
+		// We want v * TriadAmp. Since v is based on 4 * (num/samples),
+		// v * TriadAmp = 4 * num * TriadAmp / samples.
+		// We must handle the piecewise logic with integer comparisons.
+		// p < 0.25  =>  num/samples < 1/4  =>  4*num < samples
+		// p < 0.75  =>  num/samples < 3/4  =>  4*num < 3*samples
+		
+		var val int64
+		fourNum := 4 * int64(num)
+		samples64 := int64(samples)
+
+		if fourNum < samples64 {
+			// v = 4 * num / samples
+			val = (fourNum * TriadAmp) / samples64
+		} else if fourNum < 3*samples64 {
+			// v = 2 - 4*num/samples = (2*samples - 4*num) / samples
+			val = ((2*samples64 - fourNum) * TriadAmp) / samples64
+		} else {
+			// v = 4*num/samples - 4 = (4*num - 4*samples) / samples
+			val = ((fourNum - 4*samples64) * TriadAmp) / samples64
 		}
-		out[i] = int16(v * TriadAmp)
+		out[i] = int16(val)
 	}
 	return out
 }
