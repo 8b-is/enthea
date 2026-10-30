@@ -35,8 +35,17 @@ Four layers, in this order:
 3. **Pre-map `fstat` envelope** — require physical `st_size` to equal the
    header's declared length before mapping, so virtual size never exceeds EOF.
 4. **Prefault and verify** — `MADV_WILLNEED`, then verify a footer digest at
-   open, so late I/O errors fail at construction rather than mid-query.
+   open, to detect corruption present at construction.
 
-Canonical, tested implementation: `8b-is/aurora` PR #5,
+Reference implementation: [Aurora PR #5](https://github.com/8b-is/aurora/pull/5),
 `tools/zero_copy_snapshot.py` (stdlib only, `AURSNAP1` format). Reuse that
 design rather than inventing a second layout.
+
+## Limits of the mapping contract
+
+Immutable replacement protects readers only when all writers cooperate. Mode
+`0400` does not stop a privileged process, the owner changing permissions, or
+an already-open writable descriptor from truncating an inode. `MADV_WILLNEED`
+is advisory, and a successful digest check cannot prevent later I/O faults.
+Validate physical size before mapping and header bounds before exposing data;
+never treat these checks as a guarantee that `SIGBUS` is impossible.
