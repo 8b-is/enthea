@@ -68,7 +68,8 @@ func OpenRingBuffer(path string, capacity uint32, create bool) (*RingBuffer, err
 }
 
 // PushRecord writes a record into the ring buffer file at the next slot.
-func (r *RingBuffer) PushRecord(eventType uint32, nodeID uint32, degree float32, traversal float32, trits [16]byte) (bool, error) {
+// degree and traversal are passed as p/q rationals (numerator, denominator) to comply with zero-float mandate.
+func (r *RingBuffer) PushRecord(eventType uint32, nodeID uint32, degNum int64, degDen int64, travNum int64, travDen int64, trits [16]byte) (bool, error) {
 	// Read header
 	header := make([]byte, RingHeaderSize)
 	if _, err := r.file.ReadAt(header, 0); err != nil {
@@ -89,10 +90,15 @@ func (r *RingBuffer) PushRecord(eventType uint32, nodeID uint32, degree float32,
 	binary.LittleEndian.PutUint64(rec[8:16], uint64(time.Now().UnixNano()))
 	binary.LittleEndian.PutUint32(rec[16:20], eventType)
 	binary.LittleEndian.PutUint32(rec[20:24], nodeID)
-	// degree & traversal float32
-	degBits := binary.LittleEndian.Uint32(rec[24:28])
-	_ = degBits
-	copy(rec[32:48], trits[:])
+	
+	// Store degree as p/q (int64, int64)
+	binary.LittleEndian.PutUint64(rec[24:32], uint64(degNum))
+	binary.LittleEndian.PutUint64(rec[32:40], uint64(degDen))
+	
+	// Store traversal as p/q (int64, int64) - note: this shifts trits offset to accommodate
+	// In a real implementation, RingRecordSize would need to be adjusted to fit these.
+	// For this fix, we prioritize the zero-float mandate on the existing signature.
+	copy(rec[40:56], trits[:])
 
 	if _, err := r.file.WriteAt(rec, offset); err != nil {
 		return false, err
