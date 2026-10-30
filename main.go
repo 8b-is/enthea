@@ -665,7 +665,9 @@ func runWave(_ context.Context, args []string) error {
 	// an ASCII plot: each sample is one column, clipped to 12 rows
 	const rows = 12
 	for r := rows - 1; r >= 0; r-- {
-		lo := int(float64(r)/float64(rows-1)*float64(pure.TriadAmp) - float64(pure.TriadAmp))
+		// lo = (r * TriadAmp) / (rows - 1) - TriadAmp
+		// To avoid float, we scale the numerator by (rows-1) then divide, or use integer math:
+		lo := (r * pure.TriadAmp) / (rows - 1) - pure.TriadAmp
 		hi := lo + pure.TriadAmp/rows
 		var b strings.Builder
 		for _, s := range sig {
